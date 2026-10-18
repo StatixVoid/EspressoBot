@@ -2,11 +2,11 @@
 
 A small, unofficial Sabrina Carpenter-inspired Discord moderation bot with a matching website and server settings panel. Written in Python with discord.py, aiohttp, and asynchronous SQLite. The bot and panel share one process and the same validated settings.
 
-Planned public address: **https://espresso.harperurias.com**. The local site includes a home page, Discord sign-in, server selection, settings editor, Terms, and Privacy. No public hosting or DNS changes have been made. See [Discord Portal setup](docs/DISCORD_PORTAL.md), [hosting](docs/HOSTING.md), and [panel status](WEB_PANEL_PLAN.md).
+Public website: **https://espresso.harperurias.com**. The site includes a home page, Discord sign-in, server selection, settings editor, Terms, and Privacy. See [Discord Portal setup](docs/DISCORD_PORTAL.md), [hosting](docs/HOSTING.md), and [public server setup](docs/PUBLIC_SERVER.md).
 
 ## Quick start — Windows and Linux
 
-For server owners, the website now guides first-run setup: pick a staff log channel (or explicitly keep logging off), choose starter filters, and decide whether to enable automatic moderation. The full panel follows for detailed filters and reaction roles. The guide is saved separately for each server. See [server setup and chat commands](docs/SERVER_SETUP.md).
+For server owners, the website guides first-run setup: pick a staff log channel (or explicitly keep logging off), choose starter filters, and decide whether to enable automatic moderation. The full panel follows for detailed filters and reaction roles. The guide is saved separately for each server. See [server setup and chat commands](docs/SERVER_SETUP.md).
 
 For this project's existing always-on server and Cloudflare Tunnel, see [public server setup](docs/PUBLIC_SERVER.md). GitHub stores the source; the origin computer must run the full Python app with its own private configuration. `/espresso setup` and mention-based `@Espresso setup` / `@Espresso help` provide the same server-specific panel link and configuration command guide.
 
@@ -49,7 +49,7 @@ These scripts work from their own directory even when launched from elsewhere. F
 
 ## Member screening and website activity
 
-The panel now has **Activity log** and **Member review** tabs, with phone-friendly cards and a compact server picker. Configure age-based screening or manual verification for every new member, collect current rules agreement, and grant a regular access role after checks or staff approval. Screening is off by default. See [member screening and log retention](docs/MEMBER_SCREENING.md) for role-gating setup, the optional Members Intent, chat commands, and deployment. Website log history begins with this release.
+The panel includes **Activity log** and **Member review** tabs, with phone-friendly cards and a compact server picker. Configure age-based screening or manual verification for every new member, collect current rules agreement, and grant a regular access role after checks or staff approval. Screening is off by default. See [member screening and log retention](docs/MEMBER_SCREENING.md) for role-gating setup, the optional Members Intent, chat commands, and deployment. Website logs record new events while Espresso is running; older Discord messages are not imported.
 
 ## What is included
 
@@ -205,7 +205,7 @@ Before real use, check a private test server with a **regular non-admin account*
 5. Try the staff commands as a regular member and confirm refusal. Issue manual warnings as authorized staff until escalation occurs, then test `/mod untimeout` and `/mod clearwarnings`.
 6. Restart the bot and confirm settings/warnings survived. Test missing Manage Messages and missing Moderate Members separately; verify failure logs and restore permissions.
 
-No live Discord login or server actions were performed during project creation. Supply your own token and complete this check before enabling in a community.
+Complete the server checks with your own Discord application before enabling moderation in a community.
 
 ## Hosting and data
 

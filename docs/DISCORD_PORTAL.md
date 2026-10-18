@@ -2,7 +2,7 @@
 
 Create one application for **Espresso Bot** in the [Discord Developer Portal](https://discord.com/developers/applications). Use its bot token for the Gateway connection and its OAuth2 client ID/secret for website sign-in.
 
-## General Information — the fields from your screenshot
+## General Information
 
 | Portal field | Value for this version |
 | --- | --- |
@@ -48,4 +48,4 @@ Place the bot's role above members it should timeout. Restrict the chosen log ch
 6. Revoke Manage Server from a test user after login; settings reads and writes must fail.
 7. Test logout and a cancelled sign-in. Verify regular members cannot configure other servers by changing the URL.
 
-Real OAuth sign-in cannot be validated without your application credentials and registered callback. Automated tests use mocked Discord responses and do not connect real accounts.
+Live sign-in checks require configured application credentials and a registered callback. Automated tests use mocked Discord responses and do not connect real accounts.

@@ -1,4 +1,4 @@
-# Running locally and hosting later
+# Running locally and in production
 
 The easiest local commands are **`run.bat`** on Windows and **`sh run.sh`** on Linux. They prepare the Python environment, preserve your `.env`, and start the same code on either OS. Python 3.11+ is required; 3.12 is recommended.
 
