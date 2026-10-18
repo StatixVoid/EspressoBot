@@ -20,6 +20,7 @@ from .rules import Settings, normalize
 from .store import SettingsConflict, Store
 from .hate_filters import validate_filters
 from .screening_config import rules_revision
+from .role_templates import TemplatePublisher
 
 PUBLIC = Path(__file__).with_name("public")
 API = "https://discord.com/api/v10"
@@ -129,6 +130,7 @@ class Panel:
     def __init__(self, config: WebConfig, store: Store, bot=None, api=None):
         self.config, self.store, self.bot = config, store, bot
         self.api = api or DiscordAPI()
+        self.template_publisher = TemplatePublisher(store, bot)
         self.sessions: OrderedDict[str, Session] = OrderedDict()
         self.states: OrderedDict[str, OAuthState] = OrderedDict()
         self.login_hits: OrderedDict[str, list[float]] = OrderedDict()
@@ -144,6 +146,7 @@ class Panel:
             web.get("/api/servers", self.servers),
             web.get("/api/servers/{guild_id}/settings", self.get_settings),
             web.patch("/api/servers/{guild_id}/settings", self.save_settings),
+            web.post("/api/servers/{guild_id}/reaction-templates", self.publish_role_template),
             web.get("/api/servers/{guild_id}/logs", self.activity_logs),
             web.get("/api/servers/{guild_id}/screening", self.screening_queue),
             web.post("/api/servers/{guild_id}/screening/publish", self.publish_screening),
@@ -498,6 +501,27 @@ class Panel:
         except Exception as exc:
             LOG.warning("Settings saved but channel log failed (%s).", type(exc).__name__)
         return web.json_response({"settings": settings_json(settings), "version": version, "setup_warnings": setup_warnings})
+
+    async def publish_role_template(self, request):
+        session = self.session(request)
+        self.check_csrf(request, session)
+        if request.content_type != "application/json":
+            raise web.HTTPUnsupportedMediaType(reason="Send template choices as JSON.")
+        guild = await self.authorize(request, session)
+        try:
+            actor = await guild.fetch_member(int(session.user["id"]))
+            operation = await self.template_publisher.publish(guild, actor, await request.json())
+        except SettingsConflict as exc:
+            raise web.HTTPConflict(reason=str(exc)) from None
+        except ValueError as exc:
+            raise web.HTTPBadRequest(reason=str(exc)) from None
+        except discord.HTTPException:
+            raise web.HTTPServiceUnavailable(reason="Could not check this server's roles and channels. Please retry.") from None
+        result = {key:value for key,value in operation.items() if key not in {"actor_id","fingerprint"}}
+        if operation["state"] == "complete":
+            result["server"] = await self.settings_payload(guild)
+            result["message_url"] = f"https://discord.com/channels/{guild.id}/{operation['channel_id']}/{operation['message_id']}"
+        return web.json_response(result)
 
     async def activity_logs(self, request):
         guild = await self.authorize(request,self.session(request))

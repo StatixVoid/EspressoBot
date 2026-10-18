@@ -388,6 +388,42 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.save({"reaction_roles":[mapping]})).status,400)
 
 
+    async def test_template_publish_requires_session_csrf_and_fresh_server_access(self):
+        from tests.test_role_templates import draft
+        publisher = self.panel.template_publisher.publish = AsyncMock()
+        url = "/api/servers/1/reaction-templates"
+        self.assertEqual((await self.client.post(url,json=draft())).status,403)
+        self.api.guilds.return_value = [{"id":"1","permissions":"0"}]
+        self.assertEqual((await self.client.post(url,json=draft(),headers=self.headers)).status,403)
+        publisher.assert_not_awaited()
+        self.client.session.cookie_jar.clear()
+        self.assertEqual((await self.client.post(url,json=draft(),headers=self.headers)).status,401)
+
+    async def test_template_publish_returns_new_settings_and_string_ids(self):
+        from tests.test_role_templates import draft
+        self.panel.template_publisher.publish = AsyncMock(return_value={"state":"complete","actor_id":10,"fingerprint":"private-hash","channel_id":"99","message_id":"50","created_role_ids":["21"],"warnings":[]})
+        result = await self.client.post("/api/servers/1/reaction-templates",json=draft(),headers=self.headers)
+        self.assertEqual(result.status,200,await result.text())
+        data = await result.json()
+        self.assertEqual(data["message_url"],"https://discord.com/channels/1/99/50")
+        self.assertNotIn("fingerprint",data);self.assertNotIn("actor_id",data)
+        self.assertIn("version",data["server"]);self.assertEqual(data["server"]["roles"][0]["id"],"20")
+        self.api.guilds.assert_awaited_once()
+
+    async def test_template_validation_conflict_and_failed_outcome_are_explained(self):
+        from tests.test_role_templates import draft
+        from espresso.store import SettingsConflict
+        url = "/api/servers/1/reaction-templates"
+        publisher = self.panel.template_publisher.publish = AsyncMock(side_effect=ValueError("Choose a different role."))
+        response = await self.client.post(url,json=draft(),headers=self.headers)
+        self.assertEqual(response.status,400);self.assertEqual((await response.json())["error"],"Choose a different role.")
+        publisher.side_effect = SettingsConflict("Refresh first.")
+        self.assertEqual((await self.client.post(url,json=draft(),headers=self.headers)).status,409)
+        publisher.side_effect = None;publisher.return_value = {"state":"failed","error":"Check Discord before retrying.","message_id":None,"created_role_ids":[],"warnings":[]}
+        response = await self.client.post(url,json=draft(),headers=self.headers)
+        self.assertEqual(response.status,200);self.assertNotIn("server",await response.json())
+
+
 class ConfigTests(unittest.TestCase):
     def test_remote_plain_http_is_rejected(self):
         for url in ("http://espresso.harperurias.com","https://x.example/path","https://user:pass@x.example"):

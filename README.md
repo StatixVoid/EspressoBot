@@ -232,3 +232,7 @@ Code layout: `rules.py` holds validated settings and pure detection, `store.py` 
 | Settings vanish after deploy | Persist DATABASE_PATH on disk and reuse the same path |
 
 Branding is fan-inspired and unofficial. The project includes no artist photographs, logos, or song lyrics.
+
+### Reaction-role templates
+
+In the dashboard, open Reaction roles → Start with a role template. Choose a channel and menu, edit the options, review the roles and embed, then select **Add template to channel**. Espresso can create basic roles or use explicitly selected existing roles. See [the template guide](docs/REACTION_ROLE_TEMPLATES.md) for permissions, limits, and retry behavior.

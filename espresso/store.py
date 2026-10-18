@@ -74,6 +74,10 @@ class Store:
                 created_at REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS activity_guild ON activity_logs(guild_id,id);
+            CREATE TABLE IF NOT EXISTS role_template_posts (
+                guild_id INTEGER NOT NULL, request_id TEXT NOT NULL,
+                data TEXT NOT NULL, PRIMARY KEY(guild_id,request_id)
+            );
         """)
         await self.db.execute("DELETE FROM activity_logs WHERE created_at<?",(time.time()-30*86400,))
         await self.db.commit()
@@ -81,6 +85,45 @@ class Store:
     async def close(self) -> None:
         if self.db:
             await self.db.close()
+
+    async def template_operation(self, guild_id, request_id):
+        async with self.lock:
+            async with self.db.execute("SELECT data FROM role_template_posts WHERE guild_id=? AND request_id=?", (guild_id,request_id)) as cur:
+                row = await cur.fetchone()
+            return json.loads(row[0]) if row else None
+
+    async def begin_template_operation(self, guild_id, request_id, version, data):
+        async with self.lock:
+            if await self._version(guild_id) != version:
+                raise SettingsConflict("Settings changed elsewhere. Refresh this server before posting a template.")
+            try:
+                await self.db.execute("INSERT INTO role_template_posts VALUES (?,?,?)", (guild_id,request_id,json.dumps(data)))
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
+
+    async def write_template_operation(self, guild_id, request_id, data):
+        async with self.lock:
+            try:
+                await self.db.execute("UPDATE role_template_posts SET data=? WHERE guild_id=? AND request_id=?", (json.dumps(data),guild_id,request_id))
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
+
+    async def commit_template_operation(self, guild_id, request_id, version, actor_id, changes, operation):
+        async with self.lock:
+            if await self._version(guild_id) != version:
+                raise SettingsConflict("Settings changed while posting. Refresh this server before trying again.")
+            settings = Settings(**(asdict(await self._settings(guild_id)) | changes))
+            try:
+                await self.db.execute("UPDATE role_template_posts SET data=? WHERE guild_id=? AND request_id=?", (json.dumps(operation),guild_id,request_id))
+                # This commits the outcome and settings/version/audit together.
+                await self._save(guild_id, settings, actor_id, sorted(changes))
+            except BaseException:
+                await self.db.rollback()
+                raise
 
     async def _settings(self, guild_id: int) -> Settings:
         async with self.db.execute("SELECT data FROM settings WHERE guild_id=?", (guild_id,)) as cur:
@@ -244,6 +287,7 @@ class Store:
             await self.db.execute("DELETE FROM settings_versions WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM settings_audit WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM reaction_role_grants WHERE guild_id=?", (guild_id,))
+            await self.db.execute("DELETE FROM role_template_posts WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM screening_cases WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM screening_audit WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM activity_logs WHERE guild_id=?", (guild_id,))

@@ -1,0 +1,17 @@
+.role-template-builder { padding:1.2rem; margin:1.3rem 0; border:1px solid var(--border); border-radius:16px; background:#f5edf9; }
+.role-template-builder h3 { font-size:1.45rem; margin:0 0 .6rem; }
+.template-options { display:grid; gap:.8rem; margin:1rem 0; }
+.template-option { padding:1rem; border:1px solid var(--border); border-radius:12px; background:#fff9fd; min-width:0; }
+.template-include { display:flex; align-items:center; gap:.5rem; margin-bottom:.8rem; }
+.template-include input { width:auto; min-height:24px; }
+.template-option-fields { display:grid; grid-template-columns:5rem minmax(0,1fr) minmax(0,1fr); gap:.7rem; }
+.template-option-fields label { min-width:0; font-size:.75rem; }
+.template-option-fields input,.template-option-fields select { width:100%; min-width:0; min-height:44px; }
+.template-actions { display:flex; gap:.7rem; flex-wrap:wrap; margin-top:1rem; }
+.template-actions button { white-space:normal; min-height:44px; }
+.template-review { border-left:4px solid var(--accent); background:#fff9fd; border-radius:8px; padding:1rem; margin:1rem 0; overflow-wrap:anywhere; }
+.template-review h4 { font:600 1.3rem "Playfair Display",Georgia,serif; margin:0 0 .6rem; }
+.template-review p { white-space:pre-wrap; }
+.template-review ul { padding-left:1.1rem; font-size:.77rem; line-height:1.8; }
+#template-status { overflow-wrap:anywhere; }
+@media(max-width:700px) { .role-template-builder { padding:.8rem; } .template-option { padding:.7rem; } .template-option-fields { grid-template-columns:4rem minmax(0,1fr); } .template-option-fields label:last-child { grid-column:1/-1; } .template-actions button { width:100%; } }
