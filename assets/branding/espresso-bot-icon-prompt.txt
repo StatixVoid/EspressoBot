@@ -1,0 +1,12 @@
+Generated with the built-in imagegen tool.
+
+Use case: logo-brand
+Asset type: a single finished square app icon for Espresso Bot.
+Primary request: a simple coffee cup icon with a subtle Sabrina Carpenter "Espresso" mood: playful, chic, breezy vintage cafe pop. It should feel like a deliberately drawn graphic-design mark.
+Subject: one chunky buttercream ceramic espresso cup filled with dark brown coffee, a simple loop handle, resting on a small matching saucer. One tiny muted rose lipstick-kiss mark on the front of the cup is the only decorative detail.
+Style/medium: extremely simple flat vector-style illustration, bold clean cocoa-brown outlines, smooth economical curves, solid color fills, crisp silhouette, restrained retro charm.
+Composition: centered icon, large legible cup occupying about two-thirds of the square with generous breathing room. Cup shown in simple slightly elevated side view so the coffee surface is visible.
+Backdrop: solid muted powder blue extending to all four edges of the square; no outer border and no rounded-square frame.
+Palette: powder blue background, buttercream cup and saucer, deep espresso brown coffee and outlines, one muted rosy red accent.
+Text: none.
+Constraints: deliver only the icon artwork as one square image, ready to use at small sizes. Keep shapes minimal. No photorealism, no 3D, no gradients, no shiny rendering, no shadows, no grain, no complex latte art, no steam, no sparkles, no face, no robot, no circuitry, no text, no letters, no watermark, no presentation mockup.

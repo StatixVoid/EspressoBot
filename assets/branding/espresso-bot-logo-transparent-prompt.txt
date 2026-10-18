@@ -1,0 +1,7 @@
+Edited with the built-in imagegen tool.
+
+Use case: background-extraction.
+Edit target: the referenced clean Espresso Bot coffee cup app icon.
+Primary request: remove every part of the blue background, including the blue showing through the handle, to produce a genuinely transparent PNG cutout of only the cream coffee cup and saucer.
+Invariants: preserve the existing illustration exactly: same cup and saucer silhouettes, cream fill, dark espresso outlines, coffee surface, proportions, placement and clean retro graphic style. The cup is plain, without lipstick or text.
+Constraints: actual alpha transparency outside the cup and saucer and inside the handle; no colored backdrop, no checkerboard baked into the artwork, no halo, no added shadows. Keep edges clean. Do not add or redesign anything.

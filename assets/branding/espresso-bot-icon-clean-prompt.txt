@@ -1,0 +1,7 @@
+Edited with the built-in imagegen tool.
+
+Use case: precise-object-edit.
+Asset type: Espresso Bot square app icon.
+Edit target: the referenced existing coffee cup icon.
+Primary request: remove the entire rosy lipstick kiss mark from the front of the cup. Fill that small area seamlessly with the same unmarked buttercream ceramic color and subtle texture as its surroundings.
+Constraints: change only the lipstick mark area. Preserve exactly the existing cup shape, dark brown outlines, coffee, rim, handle, saucer, blue background, palette, illustration style, composition, proportions, image dimensions and cropping. The resulting cup should be completely plain, with no kiss mark or lipstick anywhere. Do not add text or any other elements.
