@@ -64,7 +64,8 @@ async def run_services(token: str, database: str, dev_guild: int | None,
         finally:
             await store.close()
     else:
-        async with Espresso(database, dev_guild, website_base_url=None if bot_only else config.base_url) as bot:
+        async with Espresso(database, dev_guild, website_base_url=None if bot_only else config.base_url,
+                            member_screening_events=os.getenv("ENABLE_MEMBER_SCREENING_EVENTS", "false").strip().lower() == "true") as bot:
             if bot_only:
                 await bot.start(token)
             else:
@@ -111,7 +112,7 @@ def main() -> None:
     except discord.LoginFailure:
         raise SystemExit("Discord rejected the bot token. Reset it in the Developer Portal and update .env.") from None
     except discord.PrivilegedIntentsRequired:
-        raise SystemExit("Enable Message Content Intent in the Discord Developer Portal.") from None
+        raise SystemExit("Enable Message Content Intent in Discord. When ENABLE_MEMBER_SCREENING_EVENTS=true, enable Server Members Intent too.") from None
     except ValueError as exc:
         raise SystemExit(str(exc)) from None
     except Exception as exc:

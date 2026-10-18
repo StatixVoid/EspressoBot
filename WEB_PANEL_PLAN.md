@@ -17,11 +17,15 @@
 - Terms and Privacy starter pages, with guidance for the portal fields in [DISCORD_PORTAL.md](docs/DISCORD_PORTAL.md).
 - Windows/Linux launchers, local `.env` loading with environment precedence, and combined bot/site startup.
 
+- Optional account-age screening, explicit rules agreement, persistent member review, and guarded verified-role grants.
+- Private, paginated website activity logs with category filters and bounded retention.
+- Phone layouts with a compact server picker, sticky keyboard-accessible tabs, and visible retry controls.
+
 ## Architecture
 
 The app uses aiohttp and discord.py on one asyncio event loop. The panel and Gateway bot share a `Store` instance, including its transaction lock. Public pages are static HTML/CSS/JS served by that same application, with no frontend build step. SQLite persists settings and warnings; OAuth access tokens live only in memory. New settings version/audit tables are created without replacing existing data.
 
-`/api/session`, `/api/servers`, and `/api/servers/{guild_id}/settings` are implemented. The settings route supports GET and versioned PATCH. State-changing requests require a session CSRF header and the configured origin. Public endpoints never return bot tokens, client secrets, OAuth access tokens, or moderation histories.
+`/api/session`, `/api/servers`, and `/api/servers/{guild_id}/settings` are implemented. The settings route supports GET and versioned PATCH. Additional authenticated routes provide activity logs, the screening queue, and CSRF-protected review and publish actions. State-changing requests require a session CSRF header and the configured origin. Public endpoints never return bot tokens, client secrets, OAuth access tokens, or moderation histories.
 
 ## Next steps before public release
 
@@ -33,6 +37,6 @@ The app uses aiohttp and discord.py on one asyncio event loop. The panel and Gat
 
 ## Possible later features
 
-Channel exemptions, domain allowlists, per-rule actions, warning retention controls, fuller status diagnostics, and a staff moderation history UI. These are not implemented. A moderation action UI would need the separate Moderate Members permission and target hierarchy checks already used by slash commands.
+Channel exemptions, domain allowlists, per-rule actions, warning retention controls, fuller status diagnostics, and configurable warning retention. These are not implemented. A moderation action UI would need the separate Moderate Members permission and target hierarchy checks already used by slash commands.
 
 Before adding independent services or multiple replicas, migrate to a shared transactional database and controlled Discord action queue. The current in-process Python lock is intentionally designed for one application process.

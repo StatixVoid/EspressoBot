@@ -29,6 +29,12 @@ https://espresso.harperurias.com/auth/discord/callback
 
 Keep Public Client off and Message Content Intent on. Leave Interactions Endpoint URL and Linked Roles Verification URL blank for this Gateway/reaction-role implementation.
 
+## Enable optional member screening
+
+For automatic account-age screening and member review, enable Server Members Intent in Discord, then add ENABLE_MEMBER_SCREENING_EVENTS=true to the NUC's private .env. Configure the verified role, entry channel, rules, and review mode on the website after restarting. See [MEMBER_SCREENING.md](MEMBER_SCREENING.md). Existing moderation remains compatible when the flag is absent.
+
+Before pulling a database update, stop Espresso and back up its data folder consistently; keep the tunnel running. The new tables are created automatically without replacing warnings or settings.
+
 ## Start one full application
 
 Stop the origin's preview process. Run **run.bat** on Windows or **sh run.sh** on Linux, with no `--web-only` argument. Stop a development bot using the same token before starting the public bot; two active processes can receive the same moderation events. The website and bot must run together in one process with persistent storage. A blank token starts preview mode automatically.

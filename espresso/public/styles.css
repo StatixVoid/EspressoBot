@@ -49,3 +49,32 @@
 .command-help summary { cursor:pointer; color:var(--accent); font-weight:600; }
 .command-help p { margin:1rem 0 0; line-height:1.9; }
 .command-help code { overflow-wrap:anywhere; }
+
+/* Dashboard sections and readable activity/review cards, including narrow phones. */
+.panel-content,.panel-content [role=tabpanel] { min-width:0; }
+.panel-tabs { position:sticky; top:calc(var(--espresso-header-height,80px) + .5rem); z-index:7; display:flex; gap:.4rem; margin:1.2rem 0 1.6rem; padding:.35rem; border:1px solid var(--border); border-radius:14px; background:#fff9fdf5; backdrop-filter:blur(9px); }
+.panel-tabs button { flex:1; min-height:44px; padding:.65rem .7rem; border:0; border-radius:10px; background:transparent; color:var(--accent); font-size:.76rem; font-weight:600; }
+.panel-tabs button[aria-selected=true] { color:white; background:#85509e; }
+.section-toolbar { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; }
+.section-toolbar h2 { font-size:1.7rem; margin-bottom:.5rem; }
+.section-toolbar p { font-size:.77rem; color:var(--muted); }
+.log-filter { max-width:24rem; margin-top:1rem; }
+.activity-list { display:grid; gap:1rem; margin-top:1.2rem; }
+.activity-card { padding:1.2rem; border:1px solid var(--border); border-radius:14px; background:#fff9fdda; overflow-wrap:anywhere; }
+.activity-card header { display:flex; justify-content:space-between; align-items:flex-start; gap:.7rem; flex-wrap:wrap; }
+.activity-card h3 { font-size:1.1rem; margin:.5rem 0; }
+.activity-card time,.activity-card .activity-kind { font-size:.65rem; color:var(--muted); }
+.activity-kind { padding:.2rem .5rem; border:1px solid var(--border); border-radius:999px; }
+.activity-card p { font-size:.76rem; white-space:pre-wrap; margin:.6rem 0 0; color:var(--muted); }
+.activity-card .member-number { font-family:ui-monospace,Consolas,monospace; font-size:.7rem; margin-bottom:.6rem; }
+#server-picker summary { list-style:none; font:1.7rem "Playfair Display",Georgia,serif; color:var(--text); }
+#server-picker summary::-webkit-details-marker { display:none; }
+#picker-name { display:none; }
+.review-actions { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
+.review-actions button,.load-more,#publish-verification,#refresh-logs,#refresh-review { min-height:44px; }
+.review-actions button { white-space:normal; }
+.load-more { margin-top:1.2rem; }
+.error-text { color:#8a3048!important; }
+#retry-server { margin-top:.6rem; }
+@media(max-width:700px) { .panel-tabs { gap:.2rem; } .panel-tabs button { padding:.6rem .35rem; font-size:.69rem; } .section-toolbar { flex-direction:column; } .section-toolbar .button { width:100%; } .activity-card { padding:1rem; } .review-actions .button { flex:1; } .server-item { min-height:52px; } .text-button { min-height:44px; } }
+@media(max-width:700px) { #server-picker { border:1px solid var(--border); border-radius:12px; background:#fff9fd99; } #server-picker summary { position:relative; cursor:pointer; padding:.7rem 2.3rem .7rem 1rem; font-size:1rem; min-height:60px; } #server-picker summary::after { content:"⌄"; position:absolute; right:1rem; top:1rem; } #server-picker[open] summary::after { content:"⌃"; } #picker-name { display:block; font:600 .76rem "Plus Jakarta Sans","Segoe UI",sans-serif; color:var(--accent); margin-top:.3rem; overflow-wrap:anywhere; } .server-picker-content { padding:0 1rem 1rem; } }

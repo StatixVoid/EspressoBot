@@ -54,7 +54,28 @@ class Store:
             );
             CREATE INDEX IF NOT EXISTS warnings_member
                 ON warnings(guild_id, user_id, created_at);
+            CREATE TABLE IF NOT EXISTS screening_cases (
+                guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+                joined_at REAL NOT NULL, account_created_at REAL NOT NULL,
+                requires_review INTEGER NOT NULL, agreed_at REAL,
+                rules_hash TEXT NOT NULL, status TEXT NOT NULL,
+                reviewer_id INTEGER, role_id INTEGER, updated_at REAL NOT NULL,
+                version INTEGER NOT NULL,
+                PRIMARY KEY(guild_id,user_id)
+            );
+            CREATE TABLE IF NOT EXISTS screening_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL, actor_id INTEGER, action TEXT NOT NULL,
+                created_at REAL NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id INTEGER NOT NULL,
+                kind TEXT NOT NULL, title TEXT NOT NULL, details TEXT NOT NULL,
+                created_at REAL NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS activity_guild ON activity_logs(guild_id,id);
         """)
+        await self.db.execute("DELETE FROM activity_logs WHERE created_at<?",(time.time()-30*86400,))
         await self.db.commit()
 
     async def close(self) -> None:
@@ -223,4 +244,67 @@ class Store:
             await self.db.execute("DELETE FROM settings_versions WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM settings_audit WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM reaction_role_grants WHERE guild_id=?", (guild_id,))
+            await self.db.execute("DELETE FROM screening_cases WHERE guild_id=?", (guild_id,))
+            await self.db.execute("DELETE FROM screening_audit WHERE guild_id=?", (guild_id,))
+            await self.db.execute("DELETE FROM activity_logs WHERE guild_id=?", (guild_id,))
             await self.db.commit()
+
+    async def log_activity(self, guild_id, title, details):
+        title,details = str(title)[:120],str(details)[:4000]
+        lower = title.casefold()
+        kind = ("verification" if "verif" in lower or "screen" in lower else
+                "settings" if "changed" in lower or "settings" in lower else
+                "roles" if "role" in lower else
+                "moderation" if any(word in lower for word in ("warn","filter","timeout","moderation")) else "system")
+        now = time.time()
+        async with self.lock:
+            try:
+                await self.db.execute("INSERT INTO activity_logs(guild_id,kind,title,details,created_at) VALUES (?,?,?,?,?)",(guild_id,kind,title,details,now))
+                await self.db.execute("DELETE FROM activity_logs WHERE guild_id=? AND (created_at<? OR id < COALESCE((SELECT id FROM activity_logs WHERE guild_id=? ORDER BY id DESC LIMIT 1 OFFSET 9999),0))",(guild_id,now-30*86400,guild_id))
+                await self.db.commit()
+            except BaseException:
+                await self.db.rollback()
+                raise
+
+    async def activity_logs(self, guild_id, before=None, kind="all"):
+        async with self.lock:
+            query = "SELECT * FROM activity_logs WHERE guild_id=? AND created_at>=?"
+            values = [guild_id,time.time()-30*86400]
+            if before is not None:
+                query += " AND id<?"
+                values.append(before)
+            if kind != "all":
+                query += " AND kind=?"
+                values.append(kind)
+            async with self.db.execute(query+" ORDER BY id DESC LIMIT 51",values) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def screening_case(self, guild_id, user_id):
+        async with self.lock:
+            async with self.db.execute("SELECT * FROM screening_cases WHERE guild_id=? AND user_id=?",(guild_id,user_id)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def screening_queue(self, guild_id, after=0):
+        async with self.lock:
+            async with self.db.execute("SELECT * FROM screening_cases WHERE guild_id=? AND user_id>? AND status IN ('awaiting_agreement','pending','denied') ORDER BY user_id LIMIT 51",(guild_id,after)) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def save_screening_case(self, case, action, actor_id=None):
+        """Caller serializes member operations; the version also prevents stale reviews."""
+        async with self.lock:
+            try:
+                existing = await self.db.execute("SELECT version FROM screening_cases WHERE guild_id=? AND user_id=?",(case["guild_id"],case["user_id"]))
+                row = await existing.fetchone()
+                await existing.close()
+                if (row[0] if row else 0) != case["version"]:
+                    raise SettingsConflict("This screening request changed. Refresh the review queue.")
+                case = {**case,"version":case["version"]+1,"updated_at":time.time()}
+                columns = ("guild_id","user_id","joined_at","account_created_at","requires_review","agreed_at","rules_hash","status","reviewer_id","role_id","updated_at","version")
+                await self.db.execute("INSERT OR REPLACE INTO screening_cases VALUES ("+",".join("?" for _ in columns)+")",tuple(case[key] for key in columns))
+                await self.db.execute("INSERT INTO screening_audit(guild_id,user_id,actor_id,action,created_at) VALUES (?,?,?,?,?)",(case["guild_id"],case["user_id"],actor_id,action,case["updated_at"]))
+                await self.db.commit()
+                return case
+            except BaseException:
+                await self.db.rollback()
+                raise

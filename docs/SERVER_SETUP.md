@@ -8,6 +8,8 @@
 
 Setup completion is stored per server. **Open setup guide** reopens it; returning to an already configured server defaults to preserving its current filters. Saving the advanced settings also finishes the guide. Settings changed through slash commands appear in the same panel. An older browser form must be refreshed after another save.
 
+The full panel also includes **Activity log** and **Member review** tabs. Configure optional account screening in Settings and use Member review to publish the verification button and approve requests. See [MEMBER_SCREENING.md](MEMBER_SCREENING.md).
+
 ## Configure from Discord
 
 Configuration requires Manage Server. The complete controls remain available as Discord slash commands:

@@ -18,6 +18,7 @@ from .rules import Settings, SpamTracker, content_decision, normalize
 from .hate_filters import ContentDecision
 from .reaction_manager import ReactionRoleManager
 from .store import Store
+from .screening import ScreeningManager, ScreeningEntryView
 
 LOG = logging.getLogger("espresso")
 COLOR = 0xD8A7B1  # Soft pink, with a little coffee-shop charm.
@@ -62,12 +63,13 @@ class StaffGroup(app_commands.Group):
 
 
 class Espresso(discord.Client):
-    def __init__(self, database_path: str, dev_guild_id: int | None = None, *, website_base_url: str | None = None):
+    def __init__(self, database_path: str, dev_guild_id: int | None = None, *, website_base_url: str | None = None, member_screening_events: bool = False):
         intents = discord.Intents.none()
         intents.guilds = True
         intents.guild_messages = True
         intents.guild_reactions = True
         intents.message_content = True
+        intents.members = member_screening_events
         super().__init__(intents=intents, allowed_mentions=discord.AllowedMentions.none(),
                          max_messages=1000, member_cache_flags=discord.MemberCacheFlags.none(),
                          activity=discord.Game(name="Espresso | keeping chats sweet ☕"))
@@ -77,6 +79,7 @@ class Espresso(discord.Client):
         self.setup_hint_times = OrderedDict()
         self.spam = SpamTracker()
         self.reaction_manager = ReactionRoleManager(self)
+        self.screening_manager = ScreeningManager(self)
         # Fixed-size locks serialize one member's actions without unbounded lock storage.
         self.member_locks = [asyncio.Lock() for _ in range(128)]
         self.tree = app_commands.CommandTree(self)
@@ -88,6 +91,7 @@ class Espresso(discord.Client):
 
     async def setup_hook(self) -> None:
         await self.store.open()
+        self.add_view(ScreeningEntryView(self.screening_manager))
         if self.dev_guild_id:
             guild = discord.Object(id=self.dev_guild_id)
             self.tree.copy_global_to(guild=guild)
@@ -130,6 +134,10 @@ class Espresso(discord.Client):
     async def log_action(self, guild: discord.Guild, title: str, details: str) -> bool:
         # Local metadata log remains useful if a Discord log channel is unavailable.
         LOG.info("guild=%s action=%s %s", guild.id, title, details)
+        try:
+            await self.store.log_activity(guild.id,title,details)
+        except Exception as exc:
+            LOG.warning("Website activity log could not be saved (%s).",type(exc).__name__)
         settings = await self.store.settings(guild.id)
         if settings.log_channel is None:
             return False
@@ -208,7 +216,8 @@ class Espresso(discord.Client):
         text += ("Choose a staff log channel and your moderation settings in the panel. "
                  "For chat setup, use `/espresso logs`, `/espresso filters`, `/espresso spam`, "
                  "`/espresso hate`, `/espresso escalation`, `/espresso exempt`, and `/espresso enable`. "
-                 "Use `/espresso settings` to review your recipe. Configuration requires Manage Server.")
+                 "Use `/espresso screening` for member screening, `/screening queue` and `/screening review` for access requests, "
+                 "and `/espresso settings` to review your recipe. Members use `/verify`. Configuration requires Manage Server; access reviews also require Manage Roles.")
         return text
 
     async def setup_hint(self, message: discord.Message) -> bool:
@@ -297,6 +306,12 @@ class Espresso(discord.Client):
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         await self.reaction_manager.handle(payload, added=True)
+
+    async def on_member_join(self, member: discord.Member) -> None:
+        await self.screening_manager.joined(member)
+
+    async def on_raw_member_remove(self, payload: discord.RawMemberRemoveEvent) -> None:
+        await self.screening_manager.left(payload.guild_id,payload.user.id)
 
     async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent) -> None:
         await self.reaction_manager.handle(payload, added=False)
@@ -476,5 +491,58 @@ class Espresso(discord.Client):
             await self.log_action(interaction.guild, "Timeout removed", f"Moderator {interaction.user.id} · member {member.id}.")
             await interaction.followup.send("Timeout removed.", ephemeral=True)
 
+        @config.command(name="screening", description="Configure manual verification or age-based member screening")
+        async def screening_config(interaction: discord.Interaction, enabled: bool,
+                                   mode: Literal["everyone","new_accounts"] = "everyone",
+                                   verified_role: discord.Role | None = None,
+                                   entry_channel: discord.TextChannel | None = None,
+                                   minimum_account_age_days: app_commands.Range[int,1,365] = 7,
+                                   require_agreement: bool = True):
+            await interaction.response.defer(ephemeral=True)
+            current,version = await self.store.snapshot(interaction.guild_id)
+            policy = {**current.screening,"enabled":enabled,"mode":mode,"minimum_account_age_days":minimum_account_age_days,"require_agreement":require_agreement}
+            if verified_role is not None:
+                policy["verified_role_id"] = verified_role.id
+            if entry_channel is not None:
+                policy["entry_channel_id"] = entry_channel.id
+            Settings(**(asdict(current) | {"screening":policy}))
+            actor = await interaction.guild.fetch_member(interaction.user.id)
+            await self.screening_manager.validate(interaction.guild,actor,policy)
+            await self.store.update_from_web(interaction.guild_id,version,actor.id,{"screening":policy})
+            await self.log_action(interaction.guild,"Screening settings changed",f"Moderator {actor.id} · enabled {enabled} · mode {mode}.")
+            await interaction.followup.send("Screening settings saved. Use /screening publish to post the entry button. Rules text and the review queue are in the website.",ephemeral=True)
+
+        @self.tree.command(name="verify", description="Read this server's rules and request verified access")
+        @app_commands.guild_only()
+        async def verify(interaction: discord.Interaction):
+            await self.screening_manager.open_rules(interaction)
+
+        screening = StaffGroup("manage_guild",name="screening",description="Review member access requests")
+
+        @screening.command(name="queue",description="Show up to 25 current member verification requests")
+        async def screening_queue(interaction: discord.Interaction):
+            await interaction.response.defer(ephemeral=True)
+            cases = await self.store.screening_queue(interaction.guild_id)
+            text = "\n".join(f"Member {case['user_id']} · {case['status']} · account age at join {max(0,int((case['joined_at']-case['account_created_at'])/86400))}d" for case in cases[:25])
+            await interaction.followup.send(text or "There are no pending verification requests.",ephemeral=True)
+
+        @screening.command(name="review",description="Approve, decline, or reopen a member's access request")
+        async def screening_review(interaction: discord.Interaction, member: discord.Member, action: Literal["approve","deny","reopen"]):
+            await interaction.response.defer(ephemeral=True)
+            actor = await interaction.guild.fetch_member(interaction.user.id)
+            case = await self.store.screening_case(interaction.guild_id,member.id)
+            if not case:
+                raise UserError("No screening request exists. Ask this member to use /verify.")
+            result = await self.screening_manager.review(interaction.guild,actor,member.id,action,case["version"])
+            await interaction.followup.send(f"Request status: {result['status']}.",ephemeral=True)
+
+        @screening.command(name="publish",description="Post a persistent rules and verification button in the entry channel")
+        async def screening_publish(interaction: discord.Interaction):
+            await interaction.response.defer(ephemeral=True)
+            actor = await interaction.guild.fetch_member(interaction.user.id)
+            url = await self.screening_manager.publish(interaction.guild,actor)
+            await interaction.followup.send(f"Verification entry posted: {url}",ephemeral=True)
+
+        self.tree.add_command(screening)
         self.tree.add_command(config)
         self.tree.add_command(mod)

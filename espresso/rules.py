@@ -7,6 +7,7 @@ import unicodedata
 
 from .hate_filters import ContentDecision, default_filters, detect, validate_filters
 from .reaction_roles import validate_mappings
+from .screening_config import default_screening, validate_screening
 
 
 def normalize(text: str) -> str:
@@ -46,6 +47,7 @@ class Settings:
     hate_filters: dict = field(default_factory=default_filters)
     reaction_roles_enabled: bool = False
     reaction_roles: list[dict] = field(default_factory=list)
+    screening: dict = field(default_factory=default_screening)
 
     def __post_init__(self) -> None:
         for name in ("setup_completed", "enabled", "spam_enabled", "block_links", "block_invites", "reaction_roles_enabled"):
@@ -68,6 +70,9 @@ class Settings:
             raise ValueError("log_channel must be a positive channel ID or null")
         validate_filters(self.hate_filters)
         validate_mappings(self.reaction_roles)
+        validate_screening(self.screening)
+        if self.screening["enabled"] and any(mapping["role_id"] == self.screening["verified_role_id"] for mapping in self.reaction_roles):
+            raise ValueError("The verified access role cannot also be a reaction role. Remove that mapping first.")
 
 
 def _basic_decision(content: str, settings: Settings) -> ContentDecision | None:

@@ -2,7 +2,7 @@ from dataclasses import asdict
 from types import SimpleNamespace
 import time
 import unittest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 from urllib.parse import parse_qs, urlsplit
 
 from aiohttp.test_utils import TestClient, TestServer
@@ -10,7 +10,8 @@ import discord
 
 from espresso.config import WebConfig
 from espresso.store import Store
-from espresso.web import COOKIE, STATE_COOKIE, OAuthState, Panel, Session
+from espresso.web import COOKIE, STATE_COOKIE, DiscordAPI, OAuthState, Panel, Session
+from espresso.screening_config import default_screening
 from espresso.reaction_manager import ReactionRoleManager
 from espresso.rules import Settings
 
@@ -211,6 +212,54 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(row[0],10)
         self.assertIn("enabled",row[1])
         self.bot.spam.reset_guild.assert_called_once_with(1)
+
+    async def test_activity_is_private_paged_and_rechecks_server_access(self):
+        for i in range(55):
+            await self.store.log_activity(1,"Automatic filter",f"Member {i}")
+        await self.store.log_activity(2,"Settings changed","Private other-server activity")
+        response = await self.client.get("/api/servers/1/logs")
+        data = await response.json()
+        self.assertEqual(len(data["logs"]),50)
+        self.assertIsInstance(data["logs"][0]["id"],str)
+        self.assertNotIn("Private other-server",await response.text())
+        more = await (await self.client.get("/api/servers/1/logs?before="+data["next_cursor"])).json()
+        self.assertEqual(len(more["logs"]),5)
+        self.assertEqual((await self.client.get("/api/servers/1/logs?kind=unknown")).status,400)
+        self.assertEqual((await self.client.get("/api/servers/2/logs")).status,403)
+        self.api.guilds.return_value[0]["permissions"] = "0"
+        self.assertEqual((await self.client.get("/api/servers/1/logs")).status,403)
+        self.client.session.cookie_jar.clear()
+        self.assertEqual((await self.client.get("/api/servers/1/logs")).status,401)
+
+    async def test_screening_ids_validation_and_review_csrf(self):
+        manager = SimpleNamespace(validate=AsyncMock(),review=AsyncMock(return_value={"status":"approved"}),publish=AsyncMock(return_value="https://discord.com/channels/1/2/3"))
+        self.bot.screening_manager = manager
+        policy = {**default_screening(),"enabled":True,"verified_role_id":"20","entry_channel_id":"99"}
+        response = await self.save({"screening":policy})
+        self.assertEqual(response.status,200,await response.text())
+        self.assertEqual((await response.json())["settings"]["screening"]["verified_role_id"],"20")
+        manager.validate.assert_awaited_once()
+        self.assertEqual((await self.client.post("/api/servers/1/screening/20",json={"action":"approve","version":1})).status,403)
+        self.assertEqual((await self.client.post("/api/servers/2/screening/20",json={"action":"approve","version":1},headers=self.headers)).status,403)
+        self.assertEqual((await self.client.post("/api/servers/1/screening/20",json={"action":"approve","version":True},headers=self.headers)).status,400)
+        manager.review.assert_not_awaited()
+        response = await self.client.post("/api/servers/1/screening/20",json={"action":"approve","version":1},headers=self.headers)
+        self.assertEqual(response.status,200)
+        self.assertEqual(manager.review.await_args.args[2:],(20,"approve",1))
+        self.assertEqual((await self.client.post("/api/servers/1/screening/publish")).status,403)
+        self.assertEqual((await self.client.post("/api/servers/1/screening/publish",headers=self.headers)).status,200)
+        self.api.guilds.return_value[0]["permissions"] = "0"
+        self.assertEqual((await self.client.get("/api/servers/1/screening")).status,403)
+
+    async def test_screening_errors_do_not_save_settings_or_report_success(self):
+        self.bot.screening_manager = SimpleNamespace(validate=AsyncMock(side_effect=ValueError("Enable member events first.")),review=AsyncMock(side_effect=ValueError("Current rules agreement required.")))
+        policy = {**default_screening(),"enabled":True,"verified_role_id":"20","entry_channel_id":"99"}
+        response = await self.save({"screening":policy})
+        self.assertEqual(response.status,400)
+        self.assertFalse((await self.store.settings(1)).screening["enabled"])
+        response = await self.client.post("/api/servers/1/screening/20",json={"action":"approve","version":1},headers=self.headers)
+        self.assertEqual(response.status,400)
+        self.assertIn("agreement",(await response.json())["error"])
 
     async def test_csrf_and_origin_are_required(self):
         for headers in ({},{"Origin":"https://evil.example","X-CSRF-Token":"csrf-value"},

@@ -45,6 +45,10 @@ Register **`http://localhost:8080/auth/discord/callback`** under Discord → OAu
 
 These scripts work from their own directory even when launched from elsewhere. For an unattended production service, prepare `.venv` first and run its Python directly rather than installing packages at every service boot.
 
+## Member screening and website activity
+
+The panel now has **Activity log** and **Member review** tabs, with phone-friendly cards and a compact server picker. Configure age-based screening or manual verification for every new member, collect current rules agreement, and grant a regular access role after checks or staff approval. Screening is off by default. See [member screening and log retention](docs/MEMBER_SCREENING.md) for role-gating setup, the optional Members Intent, chat commands, and deployment. Website log history begins with this release.
+
 ## What is included
 
 - Separate persistent settings for each server, controlled through slash commands.
@@ -62,7 +66,7 @@ These scripts work from their own directory even when launched from elsewhere. F
 
 1. Open the [Discord Developer Portal](https://discord.com/developers/applications), create an application named **Espresso**, and open its **Bot** settings.
 2. Create/reset the bot token and store it privately. It is a password; never put it in source code, screenshots, a dashboard frontend, or a public repository. If exposed, reset it immediately.
-3. Enable **Message Content Intent** under privileged gateway intents. This is required to inspect normal chat messages. Server Members and Presence intents are not used by this MVP. Discord may require intent approval as your bot grows; follow the portal's requirements.
+3. Enable **Message Content Intent** under privileged gateway intents. This is required to inspect normal chat messages. Optional member screening also requires Server Members Intent and ENABLE_MEMBER_SCREENING_EVENTS=true. Presence Intent is unused. Discord may require intent approval as your bot grows; follow the portal's requirements.
 4. Configure **Guild Install**. Use the installation/OAuth2 URL generator with scopes **bot** and **applications.commands**. Install to a test server first.
 5. Request these bot permissions: **View Channels**, **Read Message History**, **Manage Messages**, **Send Messages**, **Embed Links**, **Moderate Members**, and **Send Messages in Threads** if moderating accessible threads. For reaction roles, also grant **Manage Roles** and **Add Reactions**. Administrator is unnecessary.
 6. In the server's role settings, move Espresso's highest role above members it should timeout. Check channel overwrites as well as server permissions.

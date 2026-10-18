@@ -60,6 +60,10 @@ class ReactionRoleManager:
                             and emoji_key(value["emoji"]) == emoji_key(str(payload.emoji))), None)
             if mapping is None or (not added and not mapping["remove_on_unreact"]):
                 return
+            if added and settings.screening["enabled"]:
+                # A reaction must never bypass the staff-reviewed access role.
+                if mapping["role_id"] == settings.screening["verified_role_id"]:
+                    return
             key = mapping_key(mapping)
             if not added and not await self.bot.store.role_grant(guild.id, key, payload.user_id):
                 return  # Never revoke a role the member already had from another source.
@@ -74,6 +78,8 @@ class ReactionRoleManager:
                 member = await guild.fetch_member(payload.user_id)
                 if member.bot:
                     return
+                if added and settings.screening["enabled"] and (getattr(member,"pending",False) or not any(r.id == settings.screening["verified_role_id"] for r in member.roles)):
+                    return  # Other community roles are offered after verification too.
                 has_role = any(value.id == role.id for value in member.roles)
                 if added:
                     if has_role:

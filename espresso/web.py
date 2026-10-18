@@ -1,6 +1,7 @@
 """Same-process website and Discord OAuth settings API. Tokens stay in memory."""
 
 from collections import OrderedDict
+import asyncio
 from dataclasses import asdict, dataclass
 import hmac
 import logging
@@ -18,6 +19,7 @@ from .config import WebConfig
 from .rules import Settings, normalize
 from .store import SettingsConflict, Store
 from .hate_filters import validate_filters
+from .screening_config import rules_revision
 
 PUBLIC = Path(__file__).with_name("public")
 API = "https://discord.com/api/v10"
@@ -54,15 +56,32 @@ class DiscordAPI:
             await self.http.close()
 
     async def request(self, method, path, **kwargs):
-        try:
-            async with self.http.request(method, API + path, **kwargs) as response:
-                if response.status == 401:
-                    raise web.HTTPUnauthorized(reason="Discord authorization expired. Sign in again.")
-                if response.status >= 400:
-                    raise web.HTTPServiceUnavailable(reason="Discord is temporarily unavailable. Please try again.")
-                return await response.json()
-        except (aiohttp.ClientError, TimeoutError):
-            raise web.HTTPServiceUnavailable(reason="Discord could not be reached. Please try again.") from None
+        for attempt in range(2):
+            try:
+                async with self.http.request(method, API + path, **kwargs) as response:
+                    if response.status == 401:
+                        raise web.HTTPUnauthorized(reason="Discord authorization expired. Sign in again.")
+                    if response.status == 429:
+                        try:
+                            delay = float((await response.json()).get("retry_after",3))
+                        except (ValueError,TypeError,AttributeError,aiohttp.ClientError):
+                            delay = 3
+                        if method == "GET" and attempt == 0 and math.isfinite(delay) and 0 <= delay <= 2:
+                            await asyncio.sleep(delay+.05)
+                            continue
+                        raise web.HTTPServiceUnavailable(reason="Discord is limiting requests. Wait a moment, then retry this server.")
+                    if response.status >= 500 and method == "GET" and attempt == 0:
+                        await asyncio.sleep(.3)
+                        continue
+                    if response.status >= 400:
+                        LOG.warning("Discord API request failed: method=%s path=%s status=%s",method,path,response.status)
+                        raise web.HTTPServiceUnavailable(reason="Discord is temporarily unavailable. Please retry this server.")
+                    return await response.json()
+            except (aiohttp.ClientError, TimeoutError):
+                if method == "GET" and attempt == 0:
+                    await asyncio.sleep(.3)
+                    continue
+                raise web.HTTPServiceUnavailable(reason="Discord could not be reached. Please retry this server.") from None
 
     async def exchange(self, code, config):
         return await self.request("POST", "/oauth2/token", data={
@@ -96,6 +115,7 @@ def settings_json(settings: Settings) -> dict:
     data["log_channel"] = str(settings.log_channel) if settings.log_channel else None
     data["reaction_roles"] = [{**mapping, **{key:str(mapping[key]) for key in ("channel_id", "message_id", "role_id")}}
                               for mapping in settings.reaction_roles]
+    data["screening"] = {**settings.screening,**{key:str(settings.screening[key]) if settings.screening[key] is not None else None for key in ("verified_role_id","entry_channel_id")}}
     return data
 
 
@@ -124,6 +144,10 @@ class Panel:
             web.get("/api/servers", self.servers),
             web.get("/api/servers/{guild_id}/settings", self.get_settings),
             web.patch("/api/servers/{guild_id}/settings", self.save_settings),
+            web.get("/api/servers/{guild_id}/logs", self.activity_logs),
+            web.get("/api/servers/{guild_id}/screening", self.screening_queue),
+            web.post("/api/servers/{guild_id}/screening/publish", self.publish_screening),
+            web.post("/api/servers/{guild_id}/screening/{user_id}", self.review_screening),
         ])
         self.app.router.add_static("/assets/", PUBLIC, show_index=False)
         self.app.on_startup.append(self.start)
@@ -355,6 +379,7 @@ class Panel:
         settings, version = await self.store.snapshot(guild.id)
         return web.json_response({
             "settings": settings_json(settings), "version": version,
+            "screening_events_enabled": bool(getattr(getattr(self.bot,"intents",None),"members",False)),
             "roles": [{"id": str(r.id), "name": r.name} for r in roles if r.id != guild.id],
             "channels": [{"id": str(c.id), "name": c.name,
                           "can_log": bool(guild.me and all(getattr(c.permissions_for(guild.me), p) for p in ("view_channel", "send_messages", "embed_links")))}
@@ -395,6 +420,13 @@ class Panel:
                 raise ValueError("Invalid reaction role list")
             changes["reaction_roles"] = [{**mapping, **{key:snowflake(mapping.get(key)) for key in ("channel_id", "message_id", "role_id")}}
                                          for mapping in changes["reaction_roles"]]
+        if "screening" in changes:
+            if type(changes["screening"]) is not dict:
+                raise ValueError("Invalid screening settings")
+            changes["screening"] = dict(changes["screening"])
+            for key in ("verified_role_id","entry_channel_id"):
+                if changes["screening"].get(key) is not None:
+                    changes["screening"][key] = snowflake(changes["screening"][key])
         # Validate types/ranges before making any Discord or database mutations.
         current, _ = await self.store.snapshot(guild.id)
         Settings(**(asdict(current) | changes))
@@ -402,6 +434,12 @@ class Panel:
                             or changes.get("reaction_roles_enabled", current.reaction_roles_enabled) != current.reaction_roles_enabled)
         prepared = []
         try:
+            if "screening" in changes and changes["screening"] != current.screening:
+                actor = await guild.fetch_member(int(session.user["id"]))
+                try:
+                    await self.bot.screening_manager.validate(guild,actor,changes["screening"])
+                except ValueError as exc:
+                    raise web.HTTPBadRequest(reason=str(exc)) from None
             if "exempt_roles" in changes:
                 role_ids = {r.id for r in await guild.fetch_roles() if r.id != guild.id}
                 if not set(changes["exempt_roles"]) <= role_ids:
@@ -432,7 +470,59 @@ class Panel:
         LOG.info("Settings saved: guild=%s actor=%s fields=%s", guild.id, session.user["id"], ",".join(sorted(changes)))
         # Audit is committed with settings. Discord channel logging is best effort.
         try:
-            await self.bot.log_action(guild, "Web settings changed", f"Moderator {session.user['id']} updated {', '.join(sorted(changes))}.")
+            labels = {"enabled":"Automatic moderation","screening":"Member screening","hate_filters":"Abuse filters","reaction_roles":"Reaction-role mappings","reaction_roles_enabled":"Reaction roles","log_channel":"Staff log channel","exempt_roles":"Exempt roles","setup_completed":"Setup guide"}
+            fields = [labels.get(key,key.replace("_"," ").capitalize()) for key in sorted(changes)]
+            await self.bot.log_action(guild, "Web settings changed", f"Moderator {session.user['id']} updated {', '.join(fields)}.")
         except Exception as exc:
             LOG.warning("Settings saved but channel log failed (%s).", type(exc).__name__)
         return web.json_response({"settings": settings_json(settings), "version": version, "setup_warnings": setup_warnings})
+
+    async def activity_logs(self, request):
+        guild = await self.authorize(request,self.session(request))
+        kind = request.query.get("kind","all")
+        if kind not in ("all","moderation","settings","roles","verification","system"):
+            raise ValueError("Invalid log filter")
+        before = snowflake(request.query["before"]) if "before" in request.query else None
+        rows = await self.store.activity_logs(guild.id,before,kind)
+        return web.json_response({"logs":[{**row,"id":str(row["id"]),"guild_id":str(row["guild_id"])} for row in rows[:50]],"next_cursor":str(rows[49]["id"]) if len(rows)>50 else None})
+
+    async def screening_queue(self, request):
+        guild = await self.authorize(request,self.session(request))
+        after = snowflake(request.query["after"]) if "after" in request.query else 0
+        rows = await self.store.screening_queue(guild.id,after)
+        policy = (await self.store.settings(guild.id)).screening
+        def encode(row):
+            return {**row,**{key:str(row[key]) if row[key] is not None else None for key in ("guild_id","user_id","reviewer_id","role_id")},"requires_review":bool(row["requires_review"]),"agreement_current":bool(row["agreed_at"] and row["rules_hash"] == rules_revision(policy))}
+        return web.json_response({"cases":[encode(row) for row in rows[:50]],"next_cursor":str(rows[49]["user_id"]) if len(rows)>50 else None})
+
+    async def review_screening(self, request):
+        session = self.session(request)
+        self.check_csrf(request,session)
+        if request.content_type != "application/json":
+            raise web.HTTPUnsupportedMediaType(reason="Send the review as JSON.")
+        guild = await self.authorize(request,session)
+        user_id = snowflake(request.match_info["user_id"])
+        data = await request.json()
+        if type(data) is not dict or set(data) != {"action","version"} or type(data["version"]) is not int or data["version"] < 1:
+            raise ValueError("Invalid review")
+        try:
+            actor = await guild.fetch_member(int(session.user["id"]))
+            case = await self.bot.screening_manager.review(guild,actor,user_id,data["action"],data["version"])
+        except ValueError as exc:
+            raise web.HTTPBadRequest(reason=str(exc)) from None
+        except discord.HTTPException:
+            raise web.HTTPServiceUnavailable(reason="Discord could not complete the review. Refresh before retrying; the member may have left or permissions may have changed.") from None
+        return web.json_response({"ok":True,"status":case["status"]})
+
+    async def publish_screening(self, request):
+        session = self.session(request)
+        self.check_csrf(request,session)
+        guild = await self.authorize(request,session)
+        try:
+            actor = await guild.fetch_member(int(session.user["id"]))
+            url = await self.bot.screening_manager.publish(guild,actor)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(reason=str(exc)) from None
+        except discord.HTTPException:
+            raise web.HTTPServiceUnavailable(reason="The verification message could not be confirmed. Check the entry channel before retrying.") from None
+        return web.json_response({"ok":True,"message_url":url})
