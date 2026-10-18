@@ -90,14 +90,15 @@ function renderOptions(roles, channels, settings) {
   }
   if (settings.log_channel && !channels.some(c => c.id === settings.log_channel)) select.add(new Option("Unavailable channel — choose a new channel", settings.log_channel));
 }
-async function chooseServer(server, button) {
+async function chooseServer(server, button, initial = null) {
   if (busy || (dirty && !confirm("Discard unsaved changes and switch servers?"))) return;
   lastAttempt = [server,button]; $("#retry-server").hidden = true; $("#panel-tabs").hidden = true;
   document.dispatchEvent(new Event("espresso:loading"));
   busy = true; form.hidden = true; $("#setup-guide").hidden = true; message("Loading this server's recipe…"); updateSave();
   $("#server-name").textContent = server.name; $("#moderation-status").hidden = true;
   try {
-    const data = preview ? {settings:{...defaults, exempt_roles:["100"], log_channel:"200"}, version:0, roles:[...demoRoles], channels:demoChannels} : await request(`/api/servers/${encodeURIComponent(server.id)}/settings`);
+    if (initial?.error) throw new Error(initial.error);
+    const data = initial?.data || (preview ? {settings:{...defaults, exempt_roles:["100"], log_channel:"200"}, version:0, roles:[...demoRoles], channels:demoChannels} : await request(`/api/servers/${encodeURIComponent(server.id)}/settings`));
     currentServer = server.id; version = data.version; screeningEventsEnabled = Boolean(data.screening_events_enabled);
     renderOptions(data.roles, data.channels, data.settings); fill(data.settings);
     $("#server-description").textContent = preview ? "Example server · make yourself at home." : "Your rules, your community. Changes apply when you save.";
@@ -120,12 +121,14 @@ async function loadServers() {
   $("#moderation-status").hidden = true;
   const list = $("#server-list"); list.textContent = "Loading your servers…";
   try {
-    const data = preview ? {bot_online:true, servers:[{id:"123",name:"The Espresso Lounge",installed:true}]} : await request("/api/servers");
+    const preferredId = new URLSearchParams(location.search).get("server");
+    const params = new URLSearchParams({include_settings:"1"});
+    if(preferredId)params.set("server",preferredId);
+    const data = preview ? {bot_online:true, servers:[{id:"123",name:"The Espresso Lounge",installed:true}]} : await request(`/api/servers?${params}`);
     list.replaceChildren();
     if (!data.bot_online) message("Espresso is offline or reconnecting. Refresh when it's available to manage your servers.");
     if (!data.servers.length) {list.textContent = "No eligible servers found. You need Manage Server or Administrator permission."; return;}
     let first = null, preferred = null;
-    const preferredId = new URLSearchParams(location.search).get("server");
     for (const server of data.servers) {
       const installed = server.installed === true;
       const node = document.createElement(installed ? "button" : "a"); node.className = "server-item";
@@ -138,7 +141,10 @@ async function loadServers() {
       if (installed && !first) first = [server,node];
       if (installed && server.id === preferredId) preferred = [server,node];
     }
-    if (preferred || first) await chooseServer(...(preferred || first));
+    if (preferred || first) {
+      const selected = preferred || first;
+      await chooseServer(...selected,data.initial_server?.id === selected[0].id ? data.initial_server : null);
+    }
     else if (data.bot_online) message("Add Espresso to one of your servers to configure its recipe.");
   } catch (error) { list.textContent = "Couldn't load your servers."; message(error.message, true); }
   finally {serversLoading = false; $("#refresh-servers").disabled = false;}

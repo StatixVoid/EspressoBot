@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from urllib.parse import parse_qs, urlsplit
 
 from aiohttp.test_utils import TestClient, TestServer
+from aiohttp import web
 import discord
 
 from espresso.config import WebConfig
@@ -194,6 +195,52 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         denied = await self.save({"enabled":True})
         self.assertEqual(denied.status, 403)
         self.assertFalse((await self.store.settings(1)).enabled)
+
+    async def test_first_dashboard_load_after_each_login_uses_one_fresh_guild_request(self):
+        for attempt in range(2):
+            self.client.session.cookie_jar.clear()
+            login = await self.client.get("/auth/discord",allow_redirects=False)
+            state = parse_qs(urlsplit(login.headers["Location"]).query)["state"][0]
+            callback = await self.client.get(f"/auth/discord/callback?state={state}&code=code-{attempt}",allow_redirects=False)
+            self.assertEqual(callback.status,302)
+            self.assertEqual((await self.client.get("/api/session")).status,200)
+            self.api.guilds.reset_mock()
+            self.api.guilds.side_effect = [[{"id":"1","name":"The Lounge","permissions":"32"}],web.HTTPServiceUnavailable(reason="Duplicate immediate permission fetch")]
+            response = await self.client.get("/api/servers?include_settings=1")
+            self.assertEqual(response.status,200,await response.text())
+            data = await response.json()
+            self.assertEqual(data["initial_server"]["id"],"1")
+            self.assertEqual(data["initial_server"]["data"]["channels"][0]["id"],"99")
+            self.api.guilds.assert_awaited_once()
+        self.api.guilds.side_effect = None
+        self.api.guilds.return_value = [{"id":"1","name":"The Lounge","permissions":"0"}]
+        self.assertEqual((await self.client.get("/api/servers/1/settings")).status,403)
+
+    async def test_bootstrap_never_reads_a_server_missing_from_current_permissions(self):
+        response = await self.client.get("/api/servers?include_settings=1&server=2")
+        self.assertEqual((await response.json())["initial_server"]["id"],"1")
+        self.api.guilds.return_value[0]["permissions"] = "0"
+        response = await self.client.get("/api/servers?include_settings=1&server=1")
+        data = await response.json()
+        self.assertEqual(data["servers"],[])
+        self.assertIsNone(data["initial_server"])
+
+    async def test_bootstrap_preserves_server_choices_when_settings_fetch_fails(self):
+        self.guild.fetch_roles.side_effect = discord.HTTPException(SimpleNamespace(status=503,reason="Unavailable"),"Unavailable")
+        response = await self.client.get("/api/servers?include_settings=1")
+        self.assertEqual(response.status,200)
+        data = await response.json()
+        self.assertEqual(data["servers"][0]["id"],"1")
+        self.assertIn("Could not read",data["initial_server"]["error"])
+        self.assertNotIn("data",data["initial_server"])
+        self.api.guilds.assert_awaited_once()
+
+    async def test_bootstrap_offline_and_invalid_hint(self):
+        self.bot.is_ready.return_value = False
+        data = await (await self.client.get("/api/servers?include_settings=1")).json()
+        self.assertIsNone(data["initial_server"])
+        self.guild.fetch_roles.assert_not_awaited()
+        self.assertEqual((await self.client.get("/api/servers?include_settings=1&server=bad")).status,400)
 
     async def test_cross_server_access_is_denied(self):
         self.assertEqual((await self.client.get("/api/servers/2/settings")).status, 403)

@@ -349,12 +349,31 @@ class Panel:
 
     async def servers(self, request):
         session = self.session(request)
+        preferred = request.query.get("server")
+        if preferred:
+            preferred = str(snowflake(preferred))
         guilds = await self.api.guilds(session.access_token)
         ready = bool(self.bot and self.bot.is_ready())
-        return web.json_response({"bot_online": ready, "servers": [
+        payload = {"bot_online": ready, "servers": [
             {"id": g["id"], "name": g["name"], "installed": bool(self.bot.get_guild(int(g["id"]))) if ready else None}
             for g in guilds if eligible(g)
-        ]})
+        ]}
+        if request.query.get("include_settings") == "1":
+            payload["initial_server"] = None
+            installed = [g for g in payload["servers"] if g["installed"]]
+            selected = next((g for g in installed if g["id"] == preferred),installed[0] if installed else None)
+            if selected:
+                guild = self.bot.get_guild(int(selected["id"]))
+                # The fresh guild list above authorizes this read within the same
+                # request. Do not fetch it again immediately after login.
+                if guild is None or guild.unavailable:
+                    payload["initial_server"] = {"id":selected["id"],"error":"Espresso is not available in this server. Please retry shortly."}
+                else:
+                    try:
+                        payload["initial_server"] = {"id":selected["id"],"data":await self.settings_payload(guild)}
+                    except web.HTTPException as exc:
+                        payload["initial_server"] = {"id":selected["id"],"error":exc.reason}
+        return web.json_response(payload)
 
     async def authorize(self, request, session):
         guild_id = snowflake(request.match_info["guild_id"])
@@ -371,20 +390,23 @@ class Panel:
 
     async def get_settings(self, request):
         guild = await self.authorize(request, self.session(request))
+        return web.json_response(await self.settings_payload(guild))
+
+    async def settings_payload(self, guild):
         try:
             roles = await guild.fetch_roles()
             channels = await guild.fetch_channels()
         except discord.HTTPException:
             raise web.HTTPServiceUnavailable(reason="Could not read server roles and channels. Please try again.") from None
         settings, version = await self.store.snapshot(guild.id)
-        return web.json_response({
+        return {
             "settings": settings_json(settings), "version": version,
             "screening_events_enabled": bool(getattr(getattr(self.bot,"intents",None),"members",False)),
             "roles": [{"id": str(r.id), "name": r.name} for r in roles if r.id != guild.id],
             "channels": [{"id": str(c.id), "name": c.name,
                           "can_log": bool(guild.me and all(getattr(c.permissions_for(guild.me), p) for p in ("view_channel", "send_messages", "embed_links")))}
                          for c in channels if isinstance(c, discord.TextChannel)],
-        })
+        }
 
     async def save_settings(self, request):
         session = self.session(request)
