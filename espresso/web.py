@@ -20,6 +20,7 @@ from .rules import Settings, normalize
 from .store import SettingsConflict, Store
 from .hate_filters import validate_filters
 from .screening_config import rules_revision
+from .website_catalog import render_feature_catalog
 from .role_templates import TemplatePublisher
 
 PUBLIC = Path(__file__).with_name("public")
@@ -210,7 +211,8 @@ class Panel:
                             samesite="Lax", max_age=max_age, path="/")
 
     async def home(self, request):
-        return web.FileResponse(PUBLIC / "index.html")
+        page = (PUBLIC / "index.html").read_text(encoding="utf-8")
+        return web.Response(text=page.replace("<!-- FEATURE_CATALOG -->", render_feature_catalog()), content_type="text/html")
 
     async def stats(self, request):
         """Public aggregate gateway stats; never expose server or member details."""

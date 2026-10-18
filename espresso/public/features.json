@@ -1,0 +1,51 @@
+{
+  "features": [
+    {
+      "id": "spam-protection",
+      "status": "available",
+      "category": "The first line",
+      "title": "Less noise. More conversation.",
+      "description": "Catch message spam, unwanted Discord invites, links, and the words you choose to block. Edited messages get checked, too.",
+      "link": {"href": "/preview", "label": "Explore the filters"}
+    },
+    {
+      "id": "identity-filters",
+      "status": "available",
+      "category": "Clear boundaries",
+      "title": "Care, with a little more control.",
+      "description": "Adjust racism, misogyny, and anti-trans hate filters separately, with five coverage levels, your own terms, exceptions, and a choice of action.",
+      "link": {"href": "#community-filters", "label": "See the coverage levels"}
+    },
+    {
+      "id": "warnings-and-timeouts",
+      "status": "available",
+      "category": "Fair boundaries",
+      "title": "A warning before a breather.",
+      "description": "Keep a warning history and choose when repeated warnings lead to a timeout. Staff stay in control with manual moderation commands.",
+      "link": {"href": "#moderation-examples", "label": "See Espresso in action"}
+    },
+    {
+      "id": "community-roles",
+      "status": "available",
+      "category": "Find your people",
+      "title": "A small reaction. A new connection.",
+      "description": "Let members opt into regular community roles by reacting to an existing message. Choose whether removing the reaction removes the role.",
+      "link": {"href": "#reaction-roles", "label": "Meet reaction roles"}
+    },
+    {
+      "id": "server-controls",
+      "status": "available",
+      "category": "Your own recipe",
+      "title": "Every server gets its own blend.",
+      "description": "Use guided setup, adjust your server's rules in the web panel, choose exempt roles, and send moderation outcomes to a private staff log.",
+      "link": {"href": "/preview", "label": "Take a look at the panel"}
+    },
+    {
+      "id": "member-screening",
+      "status": "in_development",
+      "category": "Member screening",
+      "title": "A thoughtful first hello.",
+      "description": "Member screening is being built for Espresso. This spot will have the details and setup steps when the feature is ready."
+    }
+  ]
+}
