@@ -10,7 +10,7 @@ Statuses:
 - `in_development`: being built. The card is visibly labeled **In development** and has no active setup link.
 - `planned`: announced for later. The card says **Coming soon** and has no active setup link.
 
-Member screening is currently **in development** and is not part of this checkout. Keep its wording general until its implementation and setup are available here. When ready, update the description to match its actual behavior, change its status to `available`, and add a link to its setup or guide. Do not advertise screening as part of the current bot bio until it is available.
+Member screening is **available**. Its catalog card links to the home-page setup overview, and the public bio includes it. Keep the overview aligned with [MEMBER_SCREENING.md](MEMBER_SCREENING.md): optional account-age checks or manual review, current rules agreement when required, a Verified access role, and the Member review tab. Host and channel-access setup are required before enforcement.
 
 For each new feature:
 

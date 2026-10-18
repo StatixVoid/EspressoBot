@@ -42,10 +42,11 @@
     },
     {
       "id": "member-screening",
-      "status": "in_development",
+      "status": "available",
       "category": "Member screening",
       "title": "A thoughtful first hello.",
-      "description": "Member screening is being built for Espresso. This spot will have the details and setup steps when the feature is ready."
+      "description": "Choose account-age checks or manual review, collect rules agreement, and grant a Verified access role when your policy is met. Staff manage requests in Member review.",
+      "link": {"href": "#member-screening-guide", "label": "Meet member screening"}
     }
   ]
 }

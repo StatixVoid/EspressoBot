@@ -1,4 +1,4 @@
-A little sweet, a little strict. ☕ Espresso brings spam protection, hate filters, warnings, timeouts, moderation logs, and reaction roles to your community.
+A little sweet, a little strict. ☕ Espresso brings member screening, spam protection, hate filters, warnings, timeouts, moderation logs, and reaction roles to your community.
 
 Add Espresso & manage your server: https://espresso.harperurias.com
 
