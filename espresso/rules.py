@@ -30,6 +30,7 @@ LINK = re.compile(
 
 @dataclass
 class Settings:
+    setup_completed: bool = False
     enabled: bool = False
     spam_enabled: bool = True
     spam_limit: int = 6
@@ -47,7 +48,7 @@ class Settings:
     reaction_roles: list[dict] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        for name in ("enabled", "spam_enabled", "block_links", "block_invites", "reaction_roles_enabled"):
+        for name in ("setup_completed", "enabled", "spam_enabled", "block_links", "block_invites", "reaction_roles_enabled"):
             if type(getattr(self, name)) is not bool:
                 raise ValueError(f"{name} must be a boolean")
         for name, low, high in (("spam_limit", 2, 50), ("spam_window", 2, 60),

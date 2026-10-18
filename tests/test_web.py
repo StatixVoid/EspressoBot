@@ -10,7 +10,7 @@ import discord
 
 from espresso.config import WebConfig
 from espresso.store import Store
-from espresso.web import COOKIE, STATE_COOKIE, Panel, Session
+from espresso.web import COOKIE, STATE_COOKIE, OAuthState, Panel, Session
 from espresso.reaction_manager import ReactionRoleManager
 from espresso.rules import Settings
 
@@ -114,14 +114,65 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(replay.status, 400)
         self.api.exchange.assert_awaited_once()
 
+    async def test_install_returns_to_authenticated_dashboard_with_bound_state(self):
+        response = await self.client.get("/invite?guild_id=1", allow_redirects=False)
+        params = parse_qs(urlsplit(response.headers["Location"]).query)
+        self.assertEqual(set(params["scope"][0].split()), {"identify", "guilds", "bot", "applications.commands"})
+        self.assertEqual(params["guild_id"], ["1"])
+        self.assertEqual(params["disable_guild_select"], ["true"])
+        self.assertEqual(params["redirect_uri"], [self.config.callback_url])
+        self.assertFalse(discord.Permissions(int(params["permissions"][0])).administrator)
+        state = params["state"][0]
+        callback = await self.client.get(f"/auth/discord/callback?state={state}&code=x&guild_id=1", allow_redirects=False)
+        self.assertEqual(callback.headers["Location"], "/dashboard?server=1")
+        self.assertIn(COOKIE, callback.cookies)
+        self.assertEqual((await self.client.get(f"/auth/discord/callback?state={state}&code=x")).status, 400)
+
+    async def test_invite_without_oauth_secret_keeps_basic_install_link(self):
+        self.panel.config = WebConfig(client_id="123")
+        response = await self.client.get("/invite", allow_redirects=False)
+        params = parse_qs(urlsplit(response.headers["Location"]).query)
+        self.assertEqual(params["scope"], ["bot applications.commands"])
+        self.assertNotIn("state", params)
+
+    async def test_setup_requires_login_and_settings_completion_persists(self):
+        initial = await (await self.client.get("/api/servers/1/settings")).json()
+        self.assertFalse(initial["settings"]["setup_completed"])
+        self.assertTrue(initial["channels"][0]["can_log"])
+        self.channel.permissions_for.return_value.embed_links = False
+        denied_channel = await (await self.client.get("/api/servers/1/settings")).json()
+        self.assertFalse(denied_channel["channels"][0]["can_log"])
+        self.channel.permissions_for.return_value.embed_links = True
+        response = await self.save({"setup_completed":True,"log_channel":"99","enabled":False})
+        self.assertEqual(response.status,200)
+        self.assertTrue((await self.store.settings(1)).setup_completed)
+        self.assertFalse((await self.store.settings(1)).enabled)
+        self.assertEqual((await self.save({"setup_completed":"true"},version=1)).status,400)
+        self.assertEqual((await self.save({"setup_completed":False},version=0)).status,409)
+        self.client.session.cookie_jar.clear()
+        self.assertEqual((await self.client.get("/setup",allow_redirects=False)).headers["Location"],"/auth/discord")
+
+    async def test_install_rejects_invalid_server_selection(self):
+        self.assertEqual((await self.client.get("/invite?guild_id=not-a-server",allow_redirects=False)).status,400)
+        self.api.exchange.assert_not_awaited()
+
     async def test_state_requires_browser_cookie_and_expiry(self):
-        self.panel.states["valid-state"] = time.time() + 100
+        self.panel.states["valid-state"] = OAuthState(time.time() + 100)
         response = await self.client.get("/auth/discord/callback?state=valid-state&code=x")
         self.assertEqual(response.status, 400)
         self.client.session.cookie_jar.update_cookies({STATE_COOKIE:"valid-state"})
-        self.panel.states["valid-state"] = time.time() - 1
+        self.panel.states["valid-state"] = OAuthState(time.time() - 1)
         self.assertEqual((await self.client.get("/auth/discord/callback?state=valid-state&code=x")).status, 400)
         self.api.exchange.assert_not_awaited()
+
+    async def test_setup_server_selection_survives_login_without_trusting_callback_hint(self):
+        self.client.session.cookie_jar.clear()
+        response = await self.client.get("/setup?server=1",allow_redirects=False)
+        self.assertEqual(response.headers["Location"],"/auth/discord?server=1")
+        response = await self.client.get(response.headers["Location"],allow_redirects=False)
+        state = parse_qs(urlsplit(response.headers["Location"]).query)["state"][0]
+        callback = await self.client.get(f"/auth/discord/callback?state={state}&code=x&guild_id=2",allow_redirects=False)
+        self.assertEqual(callback.headers["Location"],"/dashboard?server=1")
 
     async def test_secure_cookie_on_production_origin(self):
         self.panel.config = WebConfig(base_url="https://espresso.harperurias.com", client_id="123", client_secret="secret")

@@ -31,3 +31,21 @@
 .role-example .small { margin:1.4rem 0 0; font-size:.66rem; }
 .role-demo-chip { display:inline-flex; border:1px solid #aa7bbd; background:#eee0f3; color:#6d3c85; border-radius:999px; padding:.5rem 1rem; font-size:.75rem; }
 @media(max-width:700px) { .coverage-levels { grid-template-columns:1fr; gap:1rem; } .coverage-levels li { display:grid; grid-template-columns:90px 1fr; align-items:start; gap:1rem; } .coverage-levels span { margin:0; } .reaction-intro { grid-template-columns:1fr; gap:1.5rem; } .filter-card { padding:1rem .8rem; } }
+
+/* First-run server setup. */
+.setup-guide { min-width:0; }
+.setup-welcome { margin-bottom:1.5rem; }
+.setup-welcome h2 { font-size:2rem; margin-bottom:.6rem; }
+.setup-welcome p:not(.eyebrow) { color:var(--muted); font-size:.8rem; }
+.setup-welcome .eyebrow { margin-bottom:.6rem; }
+.setup-guide .settings-heading h3 { font-size:1.35rem; margin:0 0 .4rem; }
+.setup-guide .stack-label { margin-top:0; }
+.setup-check { display:flex; align-items:flex-start; gap:.65rem; font-size:.78rem; margin-top:1.2rem; cursor:pointer; }
+.setup-check input { accent-color:var(--accent); margin-top:.2rem; flex-shrink:0; }
+.setup-summary { padding-left:1.2rem; color:var(--muted); font-size:.73rem; line-height:1.8; }
+.setup-summary li { margin-top:.65rem; }
+.setup-reopen { display:block; margin-top:1rem; }
+.command-help { padding:1rem 1.2rem; border:1px solid var(--border); border-radius:12px; font-size:.73rem; color:var(--muted); }
+.command-help summary { cursor:pointer; color:var(--accent); font-weight:600; }
+.command-help p { margin:1rem 0 0; line-height:1.9; }
+.command-help code { overflow-wrap:anywhere; }

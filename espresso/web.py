@@ -36,6 +36,12 @@ class Session:
     expires: float
 
 
+@dataclass
+class OAuthState:
+    expires: float
+    guild_id: str | None = None
+
+
 class DiscordAPI:
     def __init__(self):
         self.http: aiohttp.ClientSession | None = None
@@ -104,12 +110,12 @@ class Panel:
         self.config, self.store, self.bot = config, store, bot
         self.api = api or DiscordAPI()
         self.sessions: OrderedDict[str, Session] = OrderedDict()
-        self.states: OrderedDict[str, float] = OrderedDict()
+        self.states: OrderedDict[str, OAuthState] = OrderedDict()
         self.login_hits: OrderedDict[str, list[float]] = OrderedDict()
         self.app = web.Application(middlewares=[self.guard], client_max_size=256 * 1024)
         self.app.add_routes([
             web.get("/", self.home), web.get("/dashboard", self.dashboard),
-            web.get("/preview", self.dashboard), web.get("/invite", self.invite),
+            web.get("/preview", self.dashboard), web.get("/setup", self.dashboard), web.get("/invite", self.invite),
             web.get("/terms-of-service", self.terms), web.get("/privacy-policy", self.privacy),
             web.get("/terms", self.terms), web.get("/privacy", self.privacy),
             web.get("/auth/discord", self.login), web.get("/auth/discord/callback", self.callback),
@@ -201,10 +207,16 @@ class Panel:
             try:
                 self.session(request)
             except web.HTTPUnauthorized:
+                guild_id = request.query.get("server")
+                if guild_id:
+                    snowflake(guild_id)
+                    raise web.HTTPFound("/auth/discord?server=" + guild_id)
                 raise web.HTTPFound("/auth/discord")
         return web.FileResponse(PUBLIC / "dashboard.html")
 
     async def invite(self, request):
+        if self.config.oauth_ready:
+            return await self.login(request, install=True)
         if not self.config.client_id:
             raise web.HTTPFound("/?notice=unavailable")
         permissions = discord.Permissions(view_channel=True, send_messages=True, read_message_history=True,
@@ -218,7 +230,7 @@ class Panel:
             params.update(guild_id=guild_id, disable_guild_select="true")
         raise web.HTTPFound("https://discord.com/oauth2/authorize?" + urlencode(params))
 
-    async def login(self, request):
+    async def login(self, request, *, install=False):
         if not self.config.oauth_ready:
             raise web.HTTPFound("/?notice=unavailable")
         now = time.time()
@@ -230,22 +242,36 @@ class Panel:
         self.login_hits[peer] = hits + [now]
         while len(self.login_hits) > 1000:
             self.login_hits.popitem(last=False)
-        self.states = OrderedDict((s, expiry) for s, expiry in self.states.items() if expiry > now)
+        guild_id = request.query.get("guild_id") or request.query.get("server")
+        if guild_id:
+            guild_id = str(snowflake(guild_id))
+        self.states = OrderedDict((s, pending) for s, pending in self.states.items() if pending.expires > now)
         state = secrets.token_urlsafe(32)
-        self.states[state] = now + 300
+        self.states[state] = OAuthState(now + 300, guild_id)
         while len(self.states) > 1000:
             self.states.popitem(last=False)
-        response = web.HTTPFound("https://discord.com/oauth2/authorize?" + urlencode({
+        params = {
             "client_id": self.config.client_id, "response_type": "code",
             "redirect_uri": self.config.callback_url, "scope": "identify guilds", "state": state,
-        }))
+        }
+        if install:
+            permissions = discord.Permissions(view_channel=True, send_messages=True, read_message_history=True,
+                                              manage_messages=True, embed_links=True, moderate_members=True,
+                                              send_messages_in_threads=True, add_reactions=True, manage_roles=True)
+            params.update(scope="identify guilds bot applications.commands", permissions=str(permissions.value), integration_type="0")
+        if guild_id:
+            params["guild_id"] = guild_id
+            if install:
+                params["disable_guild_select"] = "true"
+        response = web.HTTPFound("https://discord.com/oauth2/authorize?" + urlencode(params))
         self.cookie(response, STATE_COOKIE, state, 300)
         return response
 
     async def callback(self, request):
         state = request.query.get("state", "")
+        pending = self.states.get(state)
         if (not state or not hmac.compare_digest(state, request.cookies.get(STATE_COOKIE, ""))
-                or self.states.get(state, 0) <= time.time()):
+                or pending is None or pending.expires <= time.time()):
             raise web.HTTPBadRequest(reason="Sign-in expired or could not be verified. Please start again.")
         self.states.pop(state)
         if request.query.get("iss", "https://discord.com") != "https://discord.com":
@@ -279,6 +305,10 @@ class Panel:
         while len(self.sessions) > 5000:
             self.sessions.popitem(last=False)
         self.cookie(response, COOKIE, key, ttl)
+        # This is a navigation hint only. Every settings request rechecks access.
+        guild_id = pending.guild_id or request.query.get("guild_id", "")
+        if guild_id.isascii() and guild_id.isdecimal() and 0 < int(guild_id) < 2**64:
+            response.headers["Location"] = "/dashboard?server=" + str(int(guild_id))
         LOG.info("Discord website sign-in succeeded: user=%s", user_id)
         return response
 
@@ -326,7 +356,9 @@ class Panel:
         return web.json_response({
             "settings": settings_json(settings), "version": version,
             "roles": [{"id": str(r.id), "name": r.name} for r in roles if r.id != guild.id],
-            "channels": [{"id": str(c.id), "name": c.name} for c in channels if isinstance(c, discord.TextChannel)],
+            "channels": [{"id": str(c.id), "name": c.name,
+                          "can_log": bool(guild.me and all(getattr(c.permissions_for(guild.me), p) for p in ("view_channel", "send_messages", "embed_links")))}
+                         for c in channels if isinstance(c, discord.TextChannel)],
         })
 
     async def save_settings(self, request):

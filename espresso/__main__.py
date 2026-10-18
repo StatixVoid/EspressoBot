@@ -64,7 +64,7 @@ async def run_services(token: str, database: str, dev_guild: int | None,
         finally:
             await store.close()
     else:
-        async with Espresso(database, dev_guild) as bot:
+        async with Espresso(database, dev_guild, website_base_url=None if bot_only else config.base_url) as bot:
             if bot_only:
                 await bot.start(token)
             else:

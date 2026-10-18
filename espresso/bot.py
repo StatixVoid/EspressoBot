@@ -1,11 +1,13 @@
 """Gateway events, slash commands, and Discord moderation actions."""
 
 import asyncio
+from collections import OrderedDict
 from dataclasses import asdict
 from datetime import timedelta
 import io
 import json
 import logging
+import re
 import time
 from typing import Literal
 
@@ -60,7 +62,7 @@ class StaffGroup(app_commands.Group):
 
 
 class Espresso(discord.Client):
-    def __init__(self, database_path: str, dev_guild_id: int | None = None):
+    def __init__(self, database_path: str, dev_guild_id: int | None = None, *, website_base_url: str | None = None):
         intents = discord.Intents.none()
         intents.guilds = True
         intents.guild_messages = True
@@ -71,6 +73,8 @@ class Espresso(discord.Client):
                          activity=discord.Game(name="Espresso | keeping chats sweet ☕"))
         self.store = Store(database_path)
         self.dev_guild_id = dev_guild_id
+        self.website_base_url = website_base_url
+        self.setup_hint_times = OrderedDict()
         self.spam = SpamTracker()
         self.reaction_manager = ReactionRoleManager(self)
         # Fixed-size locks serialize one member's actions without unbounded lock storage.
@@ -191,7 +195,46 @@ class Espresso(discord.Client):
         return f"Warning #{warning_id} saved. {count} in the active window. {escalation}"
 
     async def on_message(self, message: discord.Message) -> None:
+        if await self.setup_hint(message):
+            return
         await self.moderate_message(message, edited=False)
+
+    def setup_help(self, guild_id: int) -> str:
+        text = "☕ Set up Espresso for this server.\n"
+        if self.website_base_url:
+            text += f"Open the setup guide: {self.website_base_url.rstrip('/')}/setup?server={guild_id}\n"
+            if self.website_base_url.startswith("http://"):
+                text += "The website currently uses a local address, accessible on the host computer.\n"
+        text += ("Choose a staff log channel and your moderation settings in the panel. "
+                 "For chat setup, use `/espresso logs`, `/espresso filters`, `/espresso spam`, "
+                 "`/espresso hate`, `/espresso escalation`, `/espresso exempt`, and `/espresso enable`. "
+                 "Use `/espresso settings` to review your recipe. Configuration requires Manage Server.")
+        return text
+
+    async def setup_hint(self, message: discord.Message) -> bool:
+        if not message.guild or message.author.bot or message.webhook_id or self.user is None:
+            return False
+        if not re.fullmatch(rf"<@!?{self.user.id}>\s+(?:setup|help)\s*", message.content, re.I):
+            return False
+        key = (message.guild.id, message.author.id)
+        now = time.monotonic()
+        last = self.setup_hint_times.get(key)
+        if last is not None and now - last < 30:
+            return True
+        self.setup_hint_times[key] = now
+        self.setup_hint_times.move_to_end(key)
+        while len(self.setup_hint_times) > 1000:
+            self.setup_hint_times.popitem(last=False)
+        allowed = (isinstance(message.author, discord.Member)
+                   and (message.author.id == message.guild.owner_id
+                        or message.author.guild_permissions.manage_guild
+                        or message.author.guild_permissions.administrator))
+        text = self.setup_help(message.guild.id) if allowed else "You need Manage Server permission to configure Espresso."
+        try:
+            await message.channel.send(text, allowed_mentions=discord.AllowedMentions.none(), suppress_embeds=True)
+        except discord.HTTPException:
+            LOG.warning("Setup guide reply could not be sent: guild=%s channel=%s", message.guild.id, message.channel.id)
+        return True
 
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent) -> None:
         # Fetch uncached edits too. Ignore embed-only updates.
@@ -265,6 +308,10 @@ class Espresso(discord.Client):
     def register_commands(self) -> None:
         config = StaffGroup("manage_guild", name="espresso", description="Brew your server's moderation settings")
         mod = StaffGroup("moderate_members", name="mod", description="Espresso staff moderation")
+
+        @config.command(name="setup", description="Open this server's website setup guide or view configuration commands")
+        async def setup(interaction: discord.Interaction):
+            await interaction.response.send_message(self.setup_help(interaction.guild_id), ephemeral=True)
 
         @config.command(name="settings", description="Show this server's settings and filter lists")
         async def settings(interaction: discord.Interaction):

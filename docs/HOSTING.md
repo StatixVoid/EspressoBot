@@ -16,6 +16,8 @@ First-run installation needs internet access. Runtime needs access to Discord's 
 
 ## Public hosting at espresso.harperurias.com
 
+For the existing always-on origin behind Cloudflare Tunnel, follow [PUBLIC_SERVER.md](PUBLIC_SERVER.md). It covers the distinction between the origin computer and a separate development PC, production callbacks, and preview-mode troubleshooting.
+
 Use a continuously running Python host with persistent storage. Keep a **single application process**, with the bot and panel sharing the same `Store` object and event loop. Do not deploy independent bot/web SQLite writers, use multiple replicas, or run behind a request-only static site host.
 
 1. Prepare the project on the host with `sh run.sh --setup` (Linux) or `run.bat --setup` (Windows).

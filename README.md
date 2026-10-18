@@ -6,6 +6,10 @@ Planned public address: **https://espresso.harperurias.com**. The local site inc
 
 ## Quick start — Windows and Linux
 
+For server owners, the website now guides first-run setup: pick a staff log channel (or explicitly keep logging off), choose starter filters, and decide whether to enable automatic moderation. The full panel follows for detailed filters and reaction roles. The guide is saved separately for each server. See [server setup and chat commands](docs/SERVER_SETUP.md).
+
+For this project's existing always-on server and Cloudflare Tunnel, see [public server setup](docs/PUBLIC_SERVER.md). GitHub stores the source; the origin computer must run the full Python app with its own private configuration. `/espresso setup` and mention-based `@Espresso setup` / `@Espresso help` provide the same server-specific panel link and configuration command guide.
+
 Install **Python 3.11 or newer** (3.12 recommended). On Windows, enable the Python launcher/PATH during installation. On Debian/Ubuntu, install `python3-venv` if environment creation reports it missing.
 
 **Windows:** open the project folder and double-click **`run.bat`**, or run `.\run.bat` in PowerShell.

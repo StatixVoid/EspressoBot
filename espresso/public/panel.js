@@ -6,7 +6,7 @@ const categories = {racism:"Racism", misogyny:"Misogyny", trans_hate:"Anti-trans
 const levelDescriptions = {1:"Core explicit slurs",2:"Adds an expanded slur vocabulary",3:"Adds discriminatory and exclusionary phrases",4:"Adds common spacing, punctuation, and leetspeak slur evasions",5:"Adds broader identity-directed insults and stereotypes; highest risk of false positives"};
 const defaultHate = () => Object.fromEntries(Object.keys(categories).map(key => [key,{enabled:false,level:1,action:"warn",extra_terms:[],allowed_terms:[]}]));
 let availableRoles = [], availableChannels = [];
-let csrf = "", currentServer = "", version = 0, baseline = null, dirty = false, busy = false;
+let csrf = "", currentServer = "", version = 0, baseline = null, dirty = false, busy = false, setupCompleted = false;
 const defaults = {enabled:false,spam_enabled:true,spam_limit:6,spam_window:8,block_links:false,block_invites:true,bad_words:[],exempt_roles:[],log_channel:null,warn_threshold:3,warn_window_hours:24,timeout_minutes:10,hate_filters:defaultHate(),reaction_roles_enabled:false,reaction_roles:[]};
 const demoRoles = [{id:"100", name:"Moderators"}, {id:"101", name:"Trusted members"}, {id:"102", name:"Community regulars"}];
 const demoChannels = [{id:"200",name:"espresso-logs"},{id:"201",name:"staff-room"}];
@@ -20,6 +20,7 @@ async function request(url, options = {}) {
   if (!response.ok) {
     if (response.status === 401) {
       form.hidden = true;
+      $("#setup-guide").hidden = true;
       $("#preview-signin").hidden = false;
       $("#logout").hidden = true;
     }
@@ -28,7 +29,7 @@ async function request(url, options = {}) {
   return data;
 }
 function snapshot() {
-  const result = {};
+  const result = {setup_completed:setupCompleted};
   for (const name of ["enabled","spam_enabled","block_links","block_invites"]) result[name] = form.elements[name].checked;
   for (const name of ["spam_limit","spam_window","warn_threshold","warn_window_hours","timeout_minutes"]) result[name] = Number(form.elements[name].value);
   result.bad_words = [...new Set(form.elements.bad_words.value.split(/\r?\n/).map(word => word.trim()).filter(Boolean))];
@@ -46,10 +47,11 @@ function snapshot() {
 }
 function fill(settings) {
   settings = {...defaults,...settings};
+  setupCompleted = Boolean(settings.setup_completed);
   renderHate(settings.hate_filters);
   renderReactions(settings.reaction_roles);
   for (const [name,value] of Object.entries(settings)) {
-    if (name === "hate_filters" || name === "reaction_roles") continue;
+    if (name === "hate_filters" || name === "reaction_roles" || name === "setup_completed") continue;
     if (name === "exempt_roles") {
       document.querySelectorAll("input[name=exempt-role]").forEach(input => input.checked = value.includes(input.value));
     } else if (name === "bad_words") form.elements[name].value = value.join("\n");
@@ -78,12 +80,15 @@ function renderOptions(roles, channels, settings) {
   }
   if (!roles.length) rolesNode.textContent = "No additional roles in this server.";
   const select = form.elements.log_channel; select.replaceChildren(new Option("No channel logging", ""));
-  for (const channel of channels) select.add(new Option(`# ${channel.name}`, channel.id));
+  for (const channel of channels) {
+    const option = new Option(`# ${channel.name}${channel.can_log === false ? " — Espresso needs access" : ""}`, channel.id);
+    option.disabled = channel.can_log === false; select.add(option);
+  }
   if (settings.log_channel && !channels.some(c => c.id === settings.log_channel)) select.add(new Option("Unavailable channel — choose a new channel", settings.log_channel));
 }
 async function chooseServer(server, button) {
   if (busy || (dirty && !confirm("Discard unsaved changes and switch servers?"))) return;
-  busy = true; form.hidden = true; message("Loading this server's recipe…"); updateSave();
+  busy = true; form.hidden = true; $("#setup-guide").hidden = true; message("Loading this server's recipe…"); updateSave();
   $("#server-name").textContent = server.name; $("#moderation-status").hidden = true;
   try {
     const data = preview ? {settings:{...defaults, exempt_roles:["100"], log_channel:"200"}, version:0, roles:[...demoRoles], channels:demoChannels} : await request(`/api/servers/${encodeURIComponent(server.id)}/settings`);
@@ -92,13 +97,14 @@ async function chooseServer(server, button) {
     $("#server-description").textContent = preview ? "Example server · make yourself at home." : "Your rules, your community. Changes apply when you save.";
     document.querySelectorAll(".server-item").forEach(node => {node.classList.remove("active"); node.removeAttribute("aria-current");});
     button.classList.add("active"); button.setAttribute("aria-current", "true");
-    form.hidden = false; message("");
+    showSetup(data.settings); message("");
+    const url = new URL(location.href); url.searchParams.set("server", currentServer); history.replaceState(null,"",url);
   } catch (error) { message(error.message, true); }
   finally { busy = false; updateSave(); }
 }
 async function loadServers() {
   if (busy || (dirty && !confirm("Discard unsaved changes and refresh servers?"))) return;
-  form.hidden = true; dirty = false; message("");
+  form.hidden = true; $("#setup-guide").hidden = true; $("#run-setup").hidden = true; dirty = false; message("");
   $("#moderation-status").hidden = true;
   const list = $("#server-list"); list.textContent = "Loading your servers…";
   try {
@@ -106,7 +112,8 @@ async function loadServers() {
     list.replaceChildren();
     if (!data.bot_online) message("Espresso is offline or reconnecting. Refresh when it's available to manage your servers.");
     if (!data.servers.length) {list.textContent = "No eligible servers found. You need Manage Server or Administrator permission."; return;}
-    let first = null;
+    let first = null, preferred = null;
+    const preferredId = new URLSearchParams(location.search).get("server");
     for (const server of data.servers) {
       const installed = server.installed === true;
       const node = document.createElement(installed ? "button" : "a"); node.className = "server-item";
@@ -117,8 +124,9 @@ async function loadServers() {
       name.textContent = server.name; note.textContent = installed ? "Configure server →" : data.bot_online ? "Add Espresso ↗" : "Bot unavailable";
       text.append(name,note); node.append(avatar,text); list.append(node);
       if (installed && !first) first = [server,node];
+      if (installed && server.id === preferredId) preferred = [server,node];
     }
-    if (first) await chooseServer(...first);
+    if (preferred || first) await chooseServer(...(preferred || first));
     else if (data.bot_online) message("Add Espresso to one of your servers to configure its recipe.");
   } catch (error) { list.textContent = "Couldn't load your servers."; message(error.message, true); }
 }
@@ -127,14 +135,14 @@ form.addEventListener("change", () => { if (baseline) dirty = JSON.stringify(sna
 $("#reset-settings").addEventListener("click", () => {if (baseline) fill(baseline); message("");});
 form.addEventListener("submit", async event => {
   event.preventDefault(); if (preview || busy || !dirty || !form.reportValidity()) return;
-  const changes = snapshot();
+  const changes = {...snapshot(),setup_completed:true};
   if (changes.bad_words.length > 100 || changes.bad_words.some(word => word.length > 80)) {message("Use up to 100 phrases, each 80 characters or fewer.", true); return;}
   if (Object.values(changes.hate_filters).some(config => [config.extra_terms,config.allowed_terms].some(list => list.length > 100 || list.some(term => term.length > 80)))) {message("Each category list supports up to 100 phrases of 80 characters or fewer.",true); return;}
   if (changes.exempt_roles.length > 100) {message("Choose up to 100 exempt roles.", true); return;}
   busy = true; updateSave(); Array.from(form.elements).forEach(element => element.disabled = true);
   try {
     const data = await request(`/api/servers/${encodeURIComponent(currentServer)}/settings`, {method:"PATCH", headers:{"Content-Type":"application/json", "X-CSRF-Token":csrf}, body:JSON.stringify({version,changes})});
-    version = data.version; fill(data.settings); message(data.setup_warnings?.length ? `Settings saved. ${data.setup_warnings.join(" ")}` : "Your recipe is saved. Espresso will use it immediately.", Boolean(data.setup_warnings?.length));
+    version = data.version; fill(data.settings); showSetup(data.settings); message(data.setup_warnings?.length ? `Settings saved. ${data.setup_warnings.join(" ")}` : "Your recipe is saved. Espresso will use it immediately.", Boolean(data.setup_warnings?.length));
   } catch (error) { message(error.message, true); }
   finally {Array.from(form.elements).forEach(element => element.disabled = false); busy = false; updateSave();}
 });
@@ -145,6 +153,65 @@ $("#logout").addEventListener("click", async () => {
   catch (error) {message(error.message,true);}
 });
 window.addEventListener("beforeunload", event => {if (dirty && !preview) {event.preventDefault(); event.returnValue = "";}});
+
+function showSetup(settings, force = false) {
+  const guide = $("#setup-guide");
+  guide.hidden = preview || (Boolean(settings.setup_completed) && !force);
+  form.hidden = !guide.hidden;
+  $("#run-setup").hidden = preview;
+  if (guide.hidden) return;
+  const channels = $("#setup-log-channel"); channels.replaceChildren(new Option("Choose a staff channel…", ""));
+  for (const channel of availableChannels) {
+    const option = new Option(`# ${channel.name}${channel.can_log === false ? " — Espresso needs access" : ""}`, channel.id);
+    option.disabled = channel.can_log === false; channels.add(option);
+  }
+  channels.value = settings.log_channel || "";
+  $("#setup-no-logs").checked = false;
+  channels.disabled = false; channels.required = true;
+  $("#setup-enable").checked = Boolean(settings.enabled);
+  // Returning to the guide must preserve an existing custom recipe by default.
+  $("#setup-preset").value = settings.setup_completed || version > 0 ? "custom" : "balanced";
+  $("#setup-save").disabled = false;
+  $("#setup-command").textContent = "/espresso logs channel:#your-staff-channel";
+}
+$("#setup-no-logs").addEventListener("change", () => {
+  const select = $("#setup-log-channel"), off = $("#setup-no-logs").checked;
+  select.disabled = off; select.required = !off;
+});
+$("#setup-guide").addEventListener("input", () => {dirty = true;});
+$("#setup-guide").addEventListener("change", () => {dirty = true;});
+$("#setup-advanced").addEventListener("click", () => {
+  if (dirty && !confirm("Discard the guide's unsaved choices and open all settings?")) return;
+  dirty = false; $("#setup-guide").hidden = true; form.hidden = false;
+  message("Choose your settings below, then save. You can also reopen the setup guide from the server menu.");
+});
+$("#run-setup").addEventListener("click", () => {
+  if (busy || !baseline || (dirty && !confirm("Discard unsaved changes and reopen setup?"))) return;
+  fill(baseline); showSetup(baseline,true); message("");
+});
+$("#setup-guide").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (busy || preview || !event.currentTarget.reportValidity()) return;
+  const changes = {setup_completed:true, log_channel:$("#setup-no-logs").checked ? null : $("#setup-log-channel").value,
+                   enabled:$("#setup-enable").checked};
+  const preset = $("#setup-preset").value;
+  if (preset !== "custom") {
+    Object.assign(changes,{spam_enabled:true,spam_limit:6,spam_window:8,block_invites:true,block_links:false,
+                           warn_threshold:3,warn_window_hours:24,timeout_minutes:10});
+    changes.hate_filters = structuredClone(baseline.hate_filters);
+    for (const config of Object.values(changes.hate_filters)) Object.assign(config,{enabled:preset === "balanced",level:2,action:"warn"});
+  }
+  busy = true; $("#setup-save").disabled = true;
+  const controls = Array.from(event.currentTarget.elements).filter(control => !control.disabled);
+  controls.forEach(control => control.disabled = true);
+  message("Saving this server's setup…");
+  try {
+    const data = await request(`/api/servers/${encodeURIComponent(currentServer)}/settings`,{method:"PATCH",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({version,changes})});
+    version = data.version; fill(data.settings); showSetup(data.settings);
+    message(data.settings.enabled ? "Setup saved. Automatic moderation is on. You can fine-tune every filter and add reaction roles below." : "Setup saved. Automatic moderation is off until you turn it on. You can fine-tune every filter and add reaction roles below.");
+  } catch (error) {message(error.message,true);}
+  finally {controls.forEach(control => control.disabled = false);busy = false;$("#setup-save").disabled = false;updateSave();}
+});
 
 function renderHate(filters) {
   const container = $("#hate-filter-controls"); container.replaceChildren();

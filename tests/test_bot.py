@@ -48,6 +48,36 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(await self.bot.store.warnings(1, 10)), 1)
         self.member.send.assert_awaited_once()
 
+    async def test_mention_setup_requires_permission_and_limits_replies(self):
+        self.message.content = "<@99> setup"
+        self.message.channel.send = AsyncMock()
+        await self.bot.on_message(self.message)
+        self.assertIn("Manage Server",self.message.channel.send.await_args.args[0])
+        self.message.delete.assert_not_awaited()
+        self.message.channel.send.reset_mock()
+        self.member.guild_permissions.manage_guild = True
+        self.bot.setup_hint_times.clear()
+        self.bot.website_base_url = "https://espresso.harperurias.com"
+        await self.bot.on_message(self.message)
+        self.assertIn("/setup?server=1",self.message.channel.send.await_args.args[0])
+        self.assertFalse(self.message.channel.send.await_args.kwargs["allowed_mentions"].everyone)
+        await self.bot.on_message(self.message)
+        self.message.channel.send.assert_awaited_once()
+        self.assertFalse(await self.bot.store.warnings(1,10))
+
+    async def test_ordinary_mentions_still_pass_through_moderation(self):
+        self.message.content = "<@99> testword"
+        await self.bot.on_message(self.message)
+        self.message.delete.assert_awaited_once()
+
+    async def test_slash_setup_returns_private_server_link(self):
+        self.bot.website_base_url = "https://espresso.harperurias.com"
+        interaction = SimpleNamespace(guild_id=1,response=SimpleNamespace(send_message=AsyncMock()))
+        group = self.bot.tree.get_command("espresso")
+        await group.get_command("setup").callback(interaction)
+        self.assertIn("/setup?server=1",interaction.response.send_message.await_args.args[0])
+        self.assertTrue(interaction.response.send_message.await_args.kwargs["ephemeral"])
+
     async def test_exempt_role_admin_and_disabled(self):
         self.member.roles = [SimpleNamespace(id=20)]
         await self.bot.store.edit_list(1, "exempt_roles", 20, True)
