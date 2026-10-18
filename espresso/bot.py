@@ -19,6 +19,9 @@ from .hate_filters import ContentDecision
 from .reaction_manager import ReactionRoleManager
 from .store import Store
 from .screening import ScreeningManager, ScreeningEntryView
+from .community import CommunityManager
+from .community_config import channel_settings
+from .community_commands import register_community_commands
 
 LOG = logging.getLogger("espresso")
 COLOR = 0xD8A7B1  # Soft pink, with a little coffee-shop charm.
@@ -80,17 +83,20 @@ class Espresso(discord.Client):
         self.spam = SpamTracker()
         self.reaction_manager = ReactionRoleManager(self)
         self.screening_manager = ScreeningManager(self)
+        self.community_manager = CommunityManager(self)
         # Fixed-size locks serialize one member's actions without unbounded lock storage.
         self.member_locks = [asyncio.Lock() for _ in range(128)]
         self.tree = app_commands.CommandTree(self)
         self.tree.on_error = self.command_error
         self.register_commands()
+        register_community_commands(self)
 
     def member_lock(self, guild_id: int, user_id: int) -> asyncio.Lock:
         return self.member_locks[hash((guild_id, user_id)) % len(self.member_locks)]
 
     async def setup_hook(self) -> None:
         await self.store.open()
+        self.community_manager.start()
         self.add_view(ScreeningEntryView(self.screening_manager))
         if self.dev_guild_id:
             guild = discord.Object(id=self.dev_guild_id)
@@ -101,6 +107,7 @@ class Espresso(discord.Client):
         LOG.info("Slash commands registered (%s).", "development server" if self.dev_guild_id else "global")
 
     async def close(self) -> None:
+        await self.community_manager.close()
         try:
             await super().close()
         finally:
@@ -186,21 +193,24 @@ class Espresso(discord.Client):
         )
         if warning_id is None:
             return None
+        case_id = await self.store.record_case(guild.id,member.id,moderator_id,"warning",reason,"Warning recorded",f"warning:{warning_id}",warning_id)
         escalation = "No timeout."
         if force_timeout or (settings.warn_threshold and count >= settings.warn_threshold):
             escalation = await self.set_timeout(member, settings.timeout_minutes,
-                                                f"Espresso {'category action' if force_timeout else 'warning threshold'}; case {warning_id}")
+                                                f"Espresso {'category action' if force_timeout else 'warning threshold'}; case {case_id}")
+            await self.store.record_case(guild.id,member.id,moderator_id,"timeout",reason,escalation,f"escalation:{warning_id}")
         # Do not copy manual reasons into process logs or the shared channel.
         await self.log_action(guild, "Warning recorded",
-                              f"Case #{warning_id} · member {member.id} · moderator {moderator_id}\n"
+                              f"Case #{case_id} · warning #{warning_id} · member {member.id} · moderator {moderator_id}\n"
                               f"{count} warning(s) in {settings.warn_window_hours}h. {escalation}")
         # Best effort DM: failure does not prevent enforcing moderation.
         try:
             await member.send(f"☕ Espresso: you received a warning in {safe(guild.name, 100)}.\n"
-                              f"Reason: {safe(reason, 300)}\n{escalation}")
+                              f"Case #{case_id} · Reason: {safe(reason, 300)}\n{escalation}\n"
+                              f"Use /appeal case_number:{case_id} in that server to request a review.")
         except discord.HTTPException:
             pass
-        return f"Warning #{warning_id} saved. {count} in the active window. {escalation}"
+        return f"Warning #{warning_id} saved · case #{case_id}. {count} in the active window. {escalation}"
 
     async def on_message(self, message: discord.Message) -> None:
         if await self.setup_hint(message):
@@ -217,7 +227,9 @@ class Espresso(discord.Client):
                  "For chat setup, use `/espresso logs`, `/espresso filters`, `/espresso spam`, "
                  "`/espresso hate`, `/espresso escalation`, `/espresso exempt`, and `/espresso enable`. "
                  "Use `/espresso screening` for member screening, `/screening queue` and `/screening review` for access requests, "
-                 "and `/espresso settings` to review your recipe. Members use `/verify`. Configuration requires Manage Server; access reviews also require Manage Roles.")
+                 "and `/espresso settings` to review your recipe. Members use `/verify`. Configuration requires Manage Server; access reviews also require Manage Roles. "
+                 "The panel also includes Staff desk for reports and appeals, channel rules, raid protection, and Community & tools for checks, filter testing, and scheduled posts. "
+                 "Members can use `/report`, `/appeal`, `/mycases`, and optional `/coffee` and `/poll`. Staff use `/staffdesk`; managers use `/community`.")
         return text
 
     async def setup_hint(self, message: discord.Message) -> bool:
@@ -268,8 +280,6 @@ class Espresso(discord.Client):
             return
         async with self.member_lock(guild.id, message.author.id):
             settings = await self.store.settings(guild.id)
-            if not settings.enabled:
-                return
             member = message.author
             if not isinstance(member, discord.Member):
                 try:
@@ -278,6 +288,11 @@ class Espresso(discord.Client):
                     return
             if (member.id == guild.owner_id or member.guild_permissions.administrator
                     or any(role.id in settings.exempt_roles for role in member.roles)):
+                return
+            if not edited:
+                await self.community_manager.message(message,settings)
+            settings = channel_settings(settings,message.channel.id,getattr(message.channel,"parent_id",None))
+            if not settings.enabled:
                 return
             # Content deletion can still apply when the bot cannot timeout this role.
             spam = (not edited and settings.spam_enabled and self.spam.hit(
@@ -288,6 +303,9 @@ class Espresso(discord.Client):
             if decision is None:
                 return
             violation = decision.reason
+            if settings.observation_mode:
+                await self.log_action(guild,"Filter observation",f"Member {member.id} · channel {message.channel.id} · message {message.id}\nRule: {violation}; would {decision.action}. No moderation action taken.")
+                return
             try:
                 await message.delete()
                 deletion = "Message deleted."
@@ -299,16 +317,20 @@ class Espresso(discord.Client):
             await self.log_action(guild, "Automatic filter",
                                   f"Member {member.id} · channel {message.channel.id} · message {message.id}\n"
                                   f"Rule: {violation}. {deletion}")
+            warning_result = None
             if decision.action != "delete":
-                await self.issue_warning(guild, member, self.user.id, violation,
+                warning_result = await self.issue_warning(guild, member, self.user.id, violation,
                                          f"message:{message.id}", settings, automatic=True,
                                          force_timeout=decision.action == "timeout")
+            if warning_result is None:
+                await self.store.record_case(guild.id,member.id,self.user.id,"filter_delete",violation,deletion,f"delete:{message.id}")
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         await self.reaction_manager.handle(payload, added=True)
 
     async def on_member_join(self, member: discord.Member) -> None:
         await self.screening_manager.joined(member)
+        await self.community_manager.joined(member)
 
     async def on_raw_member_remove(self, payload: discord.RawMemberRemoveEvent) -> None:
         await self.screening_manager.left(payload.guild_id,payload.user.id)
@@ -319,6 +341,7 @@ class Espresso(discord.Client):
     async def on_guild_remove(self, guild: discord.Guild) -> None:
         await self.store.delete_guild(guild.id)
         self.spam.reset_guild(guild.id)
+        self.community_manager.forget_guild(guild.id)
 
     def register_commands(self) -> None:
         config = StaffGroup("manage_guild", name="espresso", description="Brew your server's moderation settings")
@@ -461,7 +484,8 @@ class Espresso(discord.Client):
                 raise UserError(failure)
             await interaction.response.defer(ephemeral=True)
             async with self.member_lock(interaction.guild_id, member.id):
-                count = await self.store.clear(interaction.guild_id, member.id)
+                count = await self.store.clear(interaction.guild_id, member.id, interaction.user.id)
+                await self.store.record_case(interaction.guild_id,member.id,interaction.user.id,"warnings_cleared","Staff cleared warning history",f"{count} warnings cleared; timeout unchanged",f"interaction:{interaction.id}")
             await self.log_action(interaction.guild, "Warnings cleared", f"Moderator {interaction.user.id} removed {count} warning(s) for member {member.id}.")
             await interaction.followup.send(f"Deleted {count} warning(s). Existing timeout unchanged.", ephemeral=True)
 
@@ -474,8 +498,9 @@ class Espresso(discord.Client):
             await interaction.response.defer(ephemeral=True)
             async with self.member_lock(interaction.guild_id, member.id):
                 result = await self.set_timeout(member, minutes, f"Staff {interaction.user.id}: {reason}")
+                case_id = await self.store.record_case(interaction.guild_id,member.id,interaction.user.id,"timeout",reason,result,f"interaction:{interaction.id}")
             await self.log_action(interaction.guild, "Staff timeout", f"Moderator {interaction.user.id} · member {member.id}\n{result}")
-            await interaction.followup.send(result, ephemeral=True)
+            await interaction.followup.send(f"Case #{case_id}. {result}", ephemeral=True)
 
         @mod.command(name="untimeout", description="Remove a member's existing timeout")
         async def untimeout(interaction: discord.Interaction, member: discord.Member,
@@ -488,6 +513,7 @@ class Espresso(discord.Client):
             await interaction.response.defer(ephemeral=True)
             async with self.member_lock(interaction.guild_id, member.id):
                 await member.timeout(None, reason=f"Staff {interaction.user.id}: {reason}"[:512])
+                await self.store.record_case(interaction.guild_id,member.id,interaction.user.id,"untimeout",reason,"Timeout removed",f"interaction:{interaction.id}")
             await self.log_action(interaction.guild, "Timeout removed", f"Moderator {interaction.user.id} · member {member.id}.")
             await interaction.followup.send("Timeout removed.", ephemeral=True)
 

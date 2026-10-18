@@ -1,0 +1,176 @@
+"""Discord entry points for the staff desk and opt-in café features."""
+
+from datetime import datetime
+import re
+from typing import Literal
+
+import discord
+from discord import app_commands
+
+
+def register_community_commands(bot):
+    from .bot import StaffGroup, safe
+    features = bot.community_manager
+
+    async def submit_report(interaction, reason, source, member=None, message_url=""):
+        if not interaction.guild or not isinstance(interaction.user,discord.Member):
+            raise ValueError("Use reports in a server.")
+        if message_url:
+            match = re.fullmatch(r"https://(?:(?:canary|ptb)\.)?discord(?:app)?\.com/channels/(\d+)/(\d+)/(\d+)",message_url)
+            if not match or int(match[1]) != interaction.guild_id:
+                raise ValueError("Use a Discord message link from this server.")
+            channel = interaction.guild.get_channel_or_thread(int(match[2]))
+            if channel is None:
+                channel = await interaction.guild.fetch_channel(int(match[2]))
+            if channel.guild.id != interaction.guild_id or not channel.permissions_for(interaction.user).view_channel or not channel.permissions_for(interaction.user).read_message_history:
+                raise ValueError("You must be able to view the reported message.")
+            if isinstance(channel,discord.Thread) and channel.is_private() and not interaction.user.guild_permissions.manage_threads:
+                try:
+                    await channel.fetch_member(interaction.user.id)
+                except discord.NotFound:
+                    raise ValueError("Join that private thread before reporting one of its messages.") from None
+            message = await channel.fetch_message(int(match[3]))
+            member = message.author
+            message_url = f"https://discord.com/channels/{interaction.guild_id}/{channel.id}/{message.id}"
+        if member is None:
+            raise ValueError("Choose a member or a message to report.")
+        item_id = await features.store.create_inbox(interaction.guild_id,"report",interaction.user.id,reason,source,
+                                                   target_id=member.id,message_url=message_url)
+        await bot.log_action(interaction.guild,"Private report received",f"Staff inbox item #{item_id}. Details are available only to staff with Moderate Members.")
+        return item_id
+
+    @bot.tree.command(name="report",description="Privately report a member or message to this server's moderators")
+    @app_commands.guild_only()
+    async def report(interaction: discord.Interaction, member: discord.Member,
+                     reason: app_commands.Range[str,1,1500], message_url: str | None = None):
+        await interaction.response.defer(ephemeral=True)
+        item_id = await submit_report(interaction,reason,f"interaction:{interaction.id}",member,message_url or "")
+        await interaction.followup.send(f"Report #{item_id} sent privately to this server's moderators.",ephemeral=True)
+
+    class ReportModal(discord.ui.Modal,title="Report to Espresso"):
+        reason = discord.ui.TextInput(label="What should moderators know?",style=discord.TextStyle.paragraph,min_length=1,max_length=1500)
+
+        def __init__(self, message):
+            super().__init__()
+            self.message_url = message.jump_url
+
+        async def on_submit(self, interaction):
+            await interaction.response.defer(ephemeral=True)
+            try:
+                item_id = await submit_report(interaction,str(self.reason),f"interaction:{interaction.id}",message_url=self.message_url)
+                await interaction.followup.send(f"Report #{item_id} sent privately to staff.",ephemeral=True)
+            except (ValueError,discord.HTTPException) as exc:
+                await interaction.followup.send(str(exc) if isinstance(exc,ValueError) else "Could not access that message. Check channel permissions and retry.",ephemeral=True)
+
+        async def on_error(self, interaction, error):
+            if interaction.response.is_done():
+                await interaction.followup.send("The report could not be confirmed. Try again shortly.",ephemeral=True)
+            else:
+                await interaction.response.send_message("The report could not be confirmed. Try again shortly.",ephemeral=True)
+
+    @bot.tree.context_menu(name="Report to Espresso")
+    @app_commands.guild_only()
+    async def report_message(interaction: discord.Interaction, message: discord.Message):
+        await interaction.response.send_modal(ReportModal(message))
+
+    @bot.tree.command(name="appeal",description="Privately appeal one of your moderation cases")
+    @app_commands.guild_only()
+    async def appeal(interaction: discord.Interaction, case_number: app_commands.Range[int,1],
+                     reason: app_commands.Range[str,1,1500]):
+        await interaction.response.defer(ephemeral=True)
+        item_id = await features.store.create_inbox(interaction.guild_id,"appeal",interaction.user.id,reason,
+                                                    f"interaction:{interaction.id}",case_id=case_number)
+        await bot.log_action(interaction.guild,"Private appeal received",f"Staff inbox item #{item_id}; case #{case_number}. Details are available to authorized staff.")
+        await interaction.followup.send(f"Appeal #{item_id} submitted. Staff will review it; existing actions remain until staff change them.",ephemeral=True)
+
+    @bot.tree.command(name="mycases",description="Privately view your recent moderation cases and case numbers")
+    @app_commands.guild_only()
+    async def mycases(interaction: discord.Interaction):
+        rows = await features.store.cases(interaction.guild_id,user_id=interaction.user.id)
+        lines = [f"**Case #{row['id']}** · {row['kind'].replace('_',' ')}" + (" · warning removed" if row["voided_at"] else "") + f"\n{safe(row['reason'],150)}" for row in rows[:10]]
+        await interaction.response.send_message("\n\n".join(lines) or "You have no recorded cases in this server.",ephemeral=True)
+
+    @bot.tree.command(name="coffee",description="Send someone a little Espresso coffee card")
+    @app_commands.guild_only()
+    async def coffee(interaction: discord.Interaction, member: discord.Member):
+        await features.coffee(interaction,member)
+
+    @bot.tree.command(name="poll",description="Create a community poll; separate answer options with |")
+    @app_commands.guild_only()
+    async def poll(interaction: discord.Interaction, question: app_commands.Range[str,1,300],
+                   options: app_commands.Range[str,3,550], hours: app_commands.Range[int,1,168] = 24):
+        await features.poll(interaction,question,options,hours)
+
+    desk = StaffGroup("moderate_members",name="staffdesk",description="Private reports, appeals, and moderation cases")
+
+    @desk.command(name="inbox",description="Show recent private reports and appeals awaiting review")
+    async def inbox(interaction: discord.Interaction):
+        rows = await features.store.inbox(interaction.guild_id)
+        text = "\n\n".join(f"**#{r['id']}** · {r['kind']} · {r['status']} · version {r['version']}\n{safe(r['body'],200)}" for r in rows[:10])
+        await interaction.response.send_message(text or "No reports or appeals are waiting.",ephemeral=True)
+
+    @desk.command(name="review",description="Claim, resolve, reject, or reopen a report or appeal")
+    async def review(interaction: discord.Interaction, item: app_commands.Range[int,1], version: app_commands.Range[int,1],
+                     action: Literal["claim","resolve","reject","reopen"], note: app_commands.Range[str,1,1000] = ""):
+        await interaction.response.defer(ephemeral=True)
+        status = await features.review(interaction.guild,interaction.user,item,version,action,note)
+        await interaction.followup.send(f"Item #{item}: {status}. Resolving an appeal records the decision; remove a mistaken warning separately.",ephemeral=True)
+
+    @desk.command(name="cases",description="View a member's recent moderation case numbers")
+    async def cases(interaction: discord.Interaction, member: discord.Member):
+        rows = await features.store.cases(interaction.guild_id,user_id=member.id)
+        text = "\n\n".join(f"**Case #{r['id']}** · {r['kind']} · <t:{int(r['created_at'])}:f>\n{safe(r['reason'],150)}\n{safe(r['outcome'],150)}" for r in rows[:10])
+        await interaction.response.send_message(text or "No cases recorded.",ephemeral=True)
+
+    @desk.command(name="removewarning",description="Remove one mistaken warning while keeping an audit record")
+    async def removewarning(interaction: discord.Interaction, warning: app_commands.Range[int,1], reason: app_commands.Range[str,1,1000]):
+        await interaction.response.defer(ephemeral=True)
+        changed = await features.remove_warning(interaction.guild,interaction.user,warning,reason)
+        await interaction.followup.send("Warning removed from active history. Existing timeout is unchanged." if changed else "That warning was already removed.",ephemeral=True)
+
+    bot.tree.add_command(desk)
+    community = StaffGroup("manage_guild",name="community",description="Community tools, schedules, and server checks")
+
+    @community.command(name="schedule",description="Schedule a post; use an ISO date with timezone, such as 2026-12-01T18:00-07:00")
+    async def schedule(interaction: discord.Interaction, channel: discord.TextChannel,
+                       when: str, message: app_commands.Range[str,1,1800],
+                       repeat_days: app_commands.Range[int,0,365] = 0, notify: bool = False):
+        try:
+            date = datetime.fromisoformat(when.replace("Z","+00:00"))
+        except ValueError:
+            raise ValueError("Use a date and time with timezone, such as 2026-12-01T18:00-07:00.") from None
+        if date.tzinfo is None:
+            raise ValueError("Include a timezone offset in the scheduled time.")
+        await interaction.response.defer(ephemeral=True)
+        post_id = await features.schedule(interaction.guild,interaction.user,channel.id,message,date.timestamp(),repeat_days,notify,f"interaction:{interaction.id}")
+        await interaction.followup.send(f"Post #{post_id} scheduled for <t:{int(date.timestamp())}:F>.",ephemeral=True)
+
+    @community.command(name="posts",description="Privately list upcoming and recent scheduled posts")
+    async def posts(interaction: discord.Interaction):
+        rows = await features.store.posts(interaction.guild_id)
+        await interaction.response.send_message("\n".join(f"#{row['id']} · {row['status']} · <t:{int(row['due_at'])}:F> · channel {row['channel_id']}" for row in rows[:20]) or "No scheduled posts.",ephemeral=True)
+
+    @community.command(name="cancelpost",description="Cancel a pending scheduled post")
+    async def cancelpost(interaction: discord.Interaction, post: app_commands.Range[int,1]):
+        await features.store.cancel_post(interaction.guild_id,post)
+        await bot.log_action(interaction.guild,"Scheduled post cancelled",f"Post #{post} · moderator {interaction.user.id}.")
+        await interaction.response.send_message(f"Post #{post} cancelled.",ephemeral=True)
+
+    @community.command(name="testfilter",description="Test text rules privately without deleting messages or recording warnings")
+    async def testfilter(interaction: discord.Interaction, text: app_commands.Range[str,1,4000], channel: discord.TextChannel | None = None):
+        result = await features.test_filter(interaction.guild_id,text,channel.id if channel else interaction.channel_id)
+        await interaction.response.send_message((f"Matched **{result['rule']}**; configured action: **{result['action']}**." if result["matched"] else "No text rule matched.") + f"\nModeration: {'on' if result['moderation_enabled'] else 'off'}; observation: {'on' if result['observation_mode'] else 'off'}.\n"+result["note"],ephemeral=True)
+
+    @community.command(name="health",description="Check permissions, role placement, and channel setup")
+    async def health(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        checks = await features.diagnostics(interaction.guild)
+        await interaction.followup.send("\n".join(f"{'✅' if item['ok'] else '⚠️'} **{item['name']}** — {item['detail']}" for item in checks)[:3900],ephemeral=True)
+
+    @community.command(name="endprotection",description="End temporary raid restrictions and restore previous channel settings")
+    async def endprotection(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        result = await features.end_protection(interaction.guild,interaction.user)
+        await interaction.followup.send(f"Restored {result['restored']} channel(s); {result['remaining']} need permission fixes before restoration.",ephemeral=True)
+
+    bot.tree.add_command(community)

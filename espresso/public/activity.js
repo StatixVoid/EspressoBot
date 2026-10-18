@@ -14,6 +14,7 @@
     for(const tab of tabs) {const selected=tab.dataset.panel===name;tab.setAttribute("aria-selected",String(selected));tab.tabIndex=selected?0:-1;node(`#${tab.dataset.panel}-panel`).hidden=!selected;}
     if(load && server && name === "logs" && !logLoaded) loadLogs();
     if(load && server && name === "review" && !reviewLoaded) loadReview();
+    document.dispatchEvent(new CustomEvent("espresso:tab",{detail:{name}}));
   }
   tabs.forEach(tab=>{
     tab.addEventListener("click",()=>selectTab(tab.dataset.panel));

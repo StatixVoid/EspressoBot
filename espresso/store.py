@@ -10,13 +10,14 @@ import aiosqlite
 
 from .rules import Settings
 from .reaction_roles import mapping_key
+from .community_store import CommunityStore
 
 
 class SettingsConflict(ValueError):
     """The settings changed after the caller opened its form."""
 
 
-class Store:
+class Store(CommunityStore):
     def __init__(self, path: str):
         self.path = path
         self.lock = asyncio.Lock()
@@ -81,6 +82,8 @@ class Store:
         """)
         await self.db.execute("DELETE FROM activity_logs WHERE created_at<?",(time.time()-30*86400,))
         await self.db.commit()
+
+        await self.open_community()
 
     async def close(self) -> None:
         if self.db:
@@ -226,8 +229,8 @@ class Store:
             # Throttle automatic warning issuance, while still deleting every violation.
             async with self.db.execute(
                 "SELECT 1 FROM warnings WHERE guild_id=? AND user_id=? "
-                "AND source LIKE 'message:%' AND created_at>? LIMIT 1",
-                (guild_id, user_id, now - 30),
+                "AND source LIKE 'message:%' AND created_at>? AND id NOT IN (SELECT warning_id FROM warning_voids WHERE guild_id=?) LIMIT 1",
+                (guild_id, user_id, now - 30, guild_id),
             ) as cur:
                 throttled = automatic and await cur.fetchone() is not None
             warning_id = None
@@ -239,10 +242,17 @@ class Store:
                 ) as cur:
                     if cur.rowcount:
                         warning_id = cur.lastrowid
+                if warning_id is not None:
+                    await self.db.execute("INSERT INTO moderation_cases(guild_id,user_id,actor_id,kind,reason,outcome,source,warning_id,created_at) VALUES (?,?,?,'warning',?,'Warning recorded',?,?,?)",
+                                          (guild_id,user_id,moderator_id,reason,f"warning:{warning_id}",warning_id,now))
                 await self.db.commit()
+            settings = await self._settings(guild_id)
+            cutoff = now - window_hours * 3600
+            if settings.warning_expiry_days:
+                cutoff = max(cutoff, now-settings.warning_expiry_days*86400)
             async with self.db.execute(
-                "SELECT COUNT(*) FROM warnings WHERE guild_id=? AND user_id=? AND created_at>=?",
-                (guild_id, user_id, now - window_hours * 3600),
+                "SELECT COUNT(*) FROM warnings WHERE guild_id=? AND user_id=? AND created_at>=? AND id NOT IN (SELECT warning_id FROM warning_voids WHERE guild_id=?)",
+                (guild_id, user_id, cutoff, guild_id),
             ) as cur:
                 count = (await cur.fetchone())[0]
             return warning_id, count
@@ -250,13 +260,14 @@ class Store:
     async def warnings(self, guild_id: int, user_id: int):
         async with self.lock:
             async with self.db.execute(
-                "SELECT * FROM warnings WHERE guild_id=? AND user_id=? ORDER BY id DESC LIMIT 10",
-                (guild_id, user_id),
+                "SELECT * FROM warnings WHERE guild_id=? AND user_id=? AND id NOT IN (SELECT warning_id FROM warning_voids WHERE guild_id=?) ORDER BY id DESC LIMIT 10",
+                (guild_id, user_id, guild_id),
             ) as cur:
                 return await cur.fetchall()
 
-    async def clear(self, guild_id: int, user_id: int) -> int:
+    async def clear(self, guild_id: int, user_id: int, actor_id: int = 0) -> int:
         async with self.lock:
+            await self.db.execute("INSERT OR IGNORE INTO warning_voids(guild_id,warning_id,actor_id,reason,created_at) SELECT guild_id,id,?,'Warning history cleared',? FROM warnings WHERE guild_id=? AND user_id=?", (actor_id,time.time(),guild_id,user_id))
             async with self.db.execute("DELETE FROM warnings WHERE guild_id=? AND user_id=?", (guild_id, user_id)) as cur:
                 count = cur.rowcount
             await self.db.commit()
@@ -282,6 +293,8 @@ class Store:
 
     async def delete_guild(self, guild_id: int) -> None:
         async with self.lock:
+            for table in ("moderation_cases", "warning_voids", "staff_inbox", "inbox_audit", "scheduled_posts", "raid_recovery", "community_state"):
+                await self.db.execute(f"DELETE FROM {table} WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM settings WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM warnings WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM settings_versions WHERE guild_id=?", (guild_id,))

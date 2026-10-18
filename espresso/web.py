@@ -22,6 +22,7 @@ from .hate_filters import validate_filters
 from .screening_config import rules_revision
 from .website_catalog import render_feature_catalog
 from .role_templates import TemplatePublisher
+from .community_web import install_community_routes, decode_extensions
 
 PUBLIC = Path(__file__).with_name("public")
 API = "https://discord.com/api/v10"
@@ -118,6 +119,9 @@ def settings_json(settings: Settings) -> dict:
     data["reaction_roles"] = [{**mapping, **{key:str(mapping[key]) for key in ("channel_id", "message_id", "role_id")}}
                               for mapping in settings.reaction_roles]
     data["screening"] = {**settings.screening,**{key:str(settings.screening[key]) if settings.screening[key] is not None else None for key in ("verified_role_id","entry_channel_id")}}
+    data["channel_rules"] = [{**row,"channel_id":str(row["channel_id"])} for row in settings.channel_rules]
+    for name,keys in (("welcome",("channel_id",)),("community",("prompt_channel_id","notification_role_id"))):
+        data[name] = {**data[name],**{key:str(data[name][key]) if data[name][key] is not None else None for key in keys}}
     return data
 
 
@@ -153,6 +157,7 @@ class Panel:
             web.post("/api/servers/{guild_id}/screening/publish", self.publish_screening),
             web.post("/api/servers/{guild_id}/screening/{user_id}", self.review_screening),
         ])
+        install_community_routes(self)
         self.app.router.add_static("/assets/", PUBLIC, show_index=False)
         self.app.on_startup.append(self.start)
         self.app.on_cleanup.append(self.cleanup)
@@ -250,7 +255,8 @@ class Panel:
             raise web.HTTPFound("/?notice=unavailable")
         permissions = discord.Permissions(view_channel=True, send_messages=True, read_message_history=True,
                                           manage_messages=True, embed_links=True, moderate_members=True,
-                                          send_messages_in_threads=True, add_reactions=True, manage_roles=True)
+                                          send_messages_in_threads=True, add_reactions=True, manage_roles=True,
+                                          manage_channels=True, send_polls=True)
         params = {"client_id": self.config.client_id, "scope": "bot applications.commands",
                   "permissions": str(permissions.value), "integration_type": "0"}
         guild_id = request.query.get("guild_id")
@@ -286,7 +292,8 @@ class Panel:
         if install:
             permissions = discord.Permissions(view_channel=True, send_messages=True, read_message_history=True,
                                               manage_messages=True, embed_links=True, moderate_members=True,
-                                              send_messages_in_threads=True, add_reactions=True, manage_roles=True)
+                                              send_messages_in_threads=True, add_reactions=True, manage_roles=True,
+                                              manage_channels=True, send_polls=True)
             params.update(scope="identify guilds bot applications.commands", permissions=str(permissions.value), integration_type="0")
         if guild_id:
             params["guild_id"] = guild_id
@@ -454,6 +461,7 @@ class Panel:
             for key in ("verified_role_id","entry_channel_id"):
                 if changes["screening"].get(key) is not None:
                     changes["screening"][key] = snowflake(changes["screening"][key])
+        decode_extensions(changes,snowflake)
         # Validate types/ranges before making any Discord or database mutations.
         current, _ = await self.store.snapshot(guild.id)
         Settings(**(asdict(current) | changes))
@@ -461,6 +469,12 @@ class Panel:
                             or changes.get("reaction_roles_enabled", current.reaction_roles_enabled) != current.reaction_roles_enabled)
         prepared = []
         try:
+            if any(key in changes for key in ("raid","welcome","community","channel_rules")):
+                actor = await guild.fetch_member(int(session.user["id"]))
+                try:
+                    await self.bot.community_manager.validate_settings(guild,actor,Settings(**(asdict(current)|changes)))
+                except ValueError as exc:
+                    raise web.HTTPBadRequest(reason=str(exc)) from None
             if "screening" in changes and changes["screening"] != current.screening:
                 actor = await guild.fetch_member(int(session.user["id"]))
                 try:

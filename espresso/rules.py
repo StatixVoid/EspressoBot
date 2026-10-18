@@ -8,6 +8,7 @@ import unicodedata
 from .hate_filters import ContentDecision, default_filters, detect, validate_filters
 from .reaction_roles import validate_mappings
 from .screening_config import default_screening, validate_screening
+from .community_config import default_raid, default_welcome, default_community, validate_extensions, trusted_link
 
 
 def normalize(text: str) -> str:
@@ -48,6 +49,13 @@ class Settings:
     reaction_roles_enabled: bool = False
     reaction_roles: list[dict] = field(default_factory=list)
     screening: dict = field(default_factory=default_screening)
+    observation_mode: bool = False
+    allowed_domains: list[str] = field(default_factory=list)
+    channel_rules: list[dict] = field(default_factory=list)
+    warning_expiry_days: int = 0
+    raid: dict = field(default_factory=default_raid)
+    welcome: dict = field(default_factory=default_welcome)
+    community: dict = field(default_factory=default_community)
 
     def __post_init__(self) -> None:
         for name in ("setup_completed", "enabled", "spam_enabled", "block_links", "block_invites", "reaction_roles_enabled"):
@@ -71,6 +79,7 @@ class Settings:
         validate_filters(self.hate_filters)
         validate_mappings(self.reaction_roles)
         validate_screening(self.screening)
+        validate_extensions(self)
         if self.screening["enabled"] and any(mapping["role_id"] == self.screening["verified_role_id"] for mapping in self.reaction_roles):
             raise ValueError("The verified access role cannot also be a reaction role. Remove that mapping first.")
 
@@ -79,7 +88,7 @@ def _basic_decision(content: str, settings: Settings) -> ContentDecision | None:
     text = normalize(content)
     if settings.block_invites and INVITE.search(text):
         return ContentDecision("Discord invite")
-    if settings.block_links and LINK.search(text):
+    if settings.block_links and any(not trusted_link(match.group(), settings.allowed_domains) for match in LINK.finditer(text)):
         return ContentDecision("Link")
     for word in settings.bad_words:
         # Literals with word boundaries: 'class' does not match blocked 'ass'.

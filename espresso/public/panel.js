@@ -46,16 +46,18 @@ function snapshot() {
   result.reaction_roles_enabled = form.elements.reaction_roles_enabled.checked;
   result.reaction_roles = Array.from(document.querySelectorAll("[data-reaction-row]"),row => ({channel_id:row.querySelector('[data-field="channel_id"]').value,message_id:row.querySelector('[data-field="message_id"]').value.trim(),emoji:row.querySelector('[data-field="emoji"]').value.trim(),role_id:row.querySelector('[data-field="role_id"]').value,remove_on_unreact:row.querySelector('[data-field="remove_on_unreact"]').checked}));
   result.screening = {enabled:form.elements.screening_enabled.checked,mode:form.elements.screening_mode.value,minimum_account_age_days:Number(form.elements.screening_minimum_account_age_days.value),verified_role_id:form.elements.screening_verified_role_id.value || null,entry_channel_id:form.elements.screening_entry_channel_id.value || null,require_agreement:form.elements.screening_require_agreement.checked,rules_text:form.elements.screening_rules_text.value.trim()};
+  Object.assign(result,window.espressoExtensions.read());
   return result;
 }
 function fill(settings) {
-  settings = {...defaults,...settings};
+  settings = {...defaults,...window.espressoExtensions.defaults,...settings};
   setupCompleted = Boolean(settings.setup_completed);
   renderHate(settings.hate_filters);
   renderReactions(settings.reaction_roles);
   renderScreening(settings.screening);
+  window.espressoExtensions.fill(settings);
   for (const [name,value] of Object.entries(settings)) {
-    if (name === "hate_filters" || name === "reaction_roles" || name === "setup_completed" || name === "screening") continue;
+    if (name === "hate_filters" || name === "reaction_roles" || name === "setup_completed" || name === "screening" || window.espressoExtensions.keys.includes(name)) continue;
     if (name === "exempt_roles") {
       document.querySelectorAll("input[name=exempt-role]").forEach(input => input.checked = value.includes(input.value));
     } else if (name === "bad_words") form.elements[name].value = value.join("\n");

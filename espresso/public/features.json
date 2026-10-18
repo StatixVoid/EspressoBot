@@ -47,6 +47,54 @@
       "title": "A thoughtful first hello.",
       "description": "Choose account-age checks or manual review, collect rules agreement, and grant a Verified access role when your policy is met. Staff manage requests in Member review.",
       "link": {"href": "#member-screening-guide", "label": "Meet member screening"}
+    },
+    {
+      "id": "private-staff-desk",
+      "status": "available",
+      "category": "Room to be heard",
+      "title": "A quieter way to ask for help.",
+      "description": "Send private reports and case appeals. Staff can assign reviewers, record decisions, find moderation cases, and remove an individual mistaken warning with an audit record.",
+      "link": {"href": "/preview", "label": "Explore the staff desk"}
+    },
+    {
+      "id": "flexible-filter-controls",
+      "status": "available",
+      "category": "A more personal recipe",
+      "title": "Different channels. Different needs.",
+      "description": "Choose trusted websites, customize channel rules, and test messages against saved filters. Observation mode lets staff watch matches before enforcing rules.",
+      "link": {"href": "/preview", "label": "Try the controls"}
+    },
+    {
+      "id": "raid-protection",
+      "status": "available",
+      "category": "Keep the café calm",
+      "title": "A little breathing room.",
+      "description": "Watch for join spikes and coordinated repeated messages. Alert staff or apply temporary slowmode or lockdown, with saved settings restored when protection ends.",
+      "link": {"href": "/preview", "label": "See raid settings"}
+    },
+    {
+      "id": "server-health-checks",
+      "status": "available",
+      "category": "Ready for your next shift",
+      "title": "Know what needs a little care.",
+      "description": "Check moderation permissions, role placement, log channels, member events, and verification access setup, with clear steps for fixing issues.",
+      "link": {"href": "/preview", "label": "Explore server checks"}
+    },
+    {
+      "id": "community-announcements",
+      "status": "available",
+      "category": "Make yourself at home",
+      "title": "A warm hello. Something to look forward to.",
+      "description": "Customize welcome cards, schedule announcements and event reminders, repeat posts, and optionally notify a community role that members choose to join.",
+      "link": {"href": "/preview", "label": "Plan a post"}
+    },
+    {
+      "id": "cafe-personality",
+      "status": "available",
+      "category": "A little Espresso personality",
+      "title": "Good company, freshly brewed.",
+      "description": "Enable friendly coffee cards, native Discord polls, and daily conversation starters. Each server chooses which café features belong in its community.",
+      "link": {"href": "/preview", "label": "Meet the community tools"}
     }
   ]
 }

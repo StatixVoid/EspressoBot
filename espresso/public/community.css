@@ -1,0 +1,33 @@
+.panel-tabs { flex-wrap:wrap; }
+.channel-rule { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem;padding:1rem;margin-bottom:1rem;border:1px solid var(--border);border-radius:12px; }
+.channel-rule label { display:grid;gap:.4rem;font-size:.76rem; }
+.channel-rule select { width:100%;min-width:0; }
+.desk-divider { border-top:1px solid var(--border);margin-top:2rem;padding-top:1.5rem; }
+.inline-form { display:flex;align-items:end;gap:.8rem;flex-wrap:wrap;margin:1rem 0; }
+.inline-form label { flex:1;min-width:12rem; }
+#desk-panel,#tools-panel { padding:1.3rem 0;min-width:0; }
+#desk-panel .stack-label,#tools-panel .stack-label { margin:.8rem 0; }
+#tools-panel form { display:grid;gap:1rem; }
+#tools-panel form>.button { justify-self:start; }
+.tool-result { white-space:pre-wrap;overflow-wrap:anywhere;font-size:.82rem;line-height:1.7;margin-top:1rem; }
+.health-check { border-left:3px solid #6d8c71; }
+.health-check.needs-attention { border-left-color:#ac4f64; }
+.inbox-note { width:100%;min-height:5rem; }
+.inbox-history { margin-top:.8rem;font-size:.76rem; }
+.activity-card label { display:grid;gap:.4rem;font-size:.75rem;margin-top:1rem; }
+.activity-card form { display:grid;gap:.7rem; }
+.activity-card details { margin-top:.8rem; }
+.activity-card summary { cursor:pointer; }
+#desk-panel input,#desk-panel textarea,#desk-panel select { width:100%;padding:.8rem 1rem;border:1px solid var(--border);border-radius:12px;background:#fffafd;color:var(--text);font:inherit; }
+#desk-panel input:focus-visible,#desk-panel textarea:focus-visible,#desk-panel select:focus-visible { outline:2px solid var(--accent);outline-offset:2px; }
+.activity-card a { overflow-wrap:anywhere; }
+.activity-card button { min-height:44px; }
+.settings-section h3 { margin-bottom:.8rem; }
+@media(max-width:700px) {
+  .panel-tabs { display:grid;grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .panel-tabs button { min-height:44px;white-space:normal; }
+  .channel-rule { grid-template-columns:minmax(0,1fr); }
+  .inline-form { align-items:stretch; }
+  .inline-form .button { width:100%; }
+  #desk-panel .review-actions .button { flex:1 1 7rem;overflow-wrap:normal;word-break:normal; }
+}
