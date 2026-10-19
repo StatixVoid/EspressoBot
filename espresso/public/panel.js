@@ -2,6 +2,9 @@
 const $ = selector => document.querySelector(selector);
 const preview = location.pathname === "/preview";
 const form = $("#settings-form");
+// Handle validation here so errors can be shown beside Save and inside closed sections.
+form.noValidate = true;
+let fieldErrorSequence = 0;
 const categories = {racism:"Racism", misogyny:"Misogyny", trans_hate:"Anti-trans hate"};
 const levelDescriptions = {1:"Core explicit slurs",2:"Adds an expanded slur vocabulary",3:"Adds discriminatory and exclusionary phrases",4:"Adds common spacing, punctuation, and leetspeak slur evasions",5:"Adds broader identity-directed insults and stereotypes; highest risk of false positives"};
 const defaultHate = () => Object.fromEntries(Object.keys(categories).map(key => [key,{enabled:false,level:1,action:"warn",extra_terms:[],allowed_terms:[]}]));
@@ -14,6 +17,32 @@ const demoChannels = [{id:"200",name:"espresso-logs"},{id:"201",name:"staff-room
 
 function message(text, error = false) {
   const node = $("#panel-message"); node.textContent = text; node.hidden = !text; node.classList.toggle("notice-error", error);
+  const feedback = $("#settings-feedback");
+  feedback.textContent = form.hidden ? "" : text; feedback.hidden = form.hidden || !text;
+  feedback.classList.toggle("save-feedback-error", error);
+}
+function clearSettingsErrors() {
+  for (const control of form.querySelectorAll("[data-save-invalid]")) {
+    const errorId = control.dataset.saveInvalid;
+    control.removeAttribute("aria-invalid");
+    const describedBy = (control.getAttribute("aria-describedby") || "").split(/\s+/).filter(id => id && id !== errorId);
+    if (describedBy.length) control.setAttribute("aria-describedby", describedBy.join(" ")); else control.removeAttribute("aria-describedby");
+    document.getElementById(errorId)?.remove(); delete control.dataset.saveInvalid;
+  }
+}
+function settingsFieldError(control, text) {
+  const error = document.createElement("small"); error.id = `settings-field-error-${++fieldErrorSequence}`;
+  error.className = "settings-field-error"; error.textContent = text;
+  control.insertAdjacentElement("afterend", error);
+  control.dataset.saveInvalid = error.id; control.setAttribute("aria-invalid", "true");
+  control.setAttribute("aria-describedby", [control.getAttribute("aria-describedby"),error.id].filter(Boolean).join(" "));
+  for (let parent = control.parentElement; parent && parent !== form; parent = parent.parentElement) if (parent.tagName === "DETAILS") parent.open = true;
+  message(text, true);
+  control.scrollIntoView({block:"center",behavior:"instant"}); control.focus({preventScroll:true});
+}
+function screeningRequirements() {
+  const enabled = form.elements.screening_enabled.checked;
+  for (const name of ["screening_verified_role_id","screening_entry_channel_id"]) form.elements[name].required = enabled;
 }
 async function request(url, options = {}) {
   const response = await fetch(url, {credentials:"same-origin", ...options, headers:{...options.headers}});
@@ -50,6 +79,7 @@ function snapshot() {
   return result;
 }
 function fill(settings) {
+  clearSettingsErrors();
   settings = {...defaults,...window.espressoExtensions.defaults,...settings};
   setupCompleted = Boolean(settings.setup_completed);
   renderHate(settings.hate_filters);
@@ -159,16 +189,26 @@ async function loadServers() {
 $("#retry-server").addEventListener("click",()=>{if(lastAttempt) chooseServer(...lastAttempt);});
 $("#server-picker").addEventListener("click",event=>{if(event.target.closest("summary") && !matchMedia("(max-width:700px)").matches)event.preventDefault();});
 matchMedia("(max-width:700px)").addEventListener("change",event=>{$("#server-picker").open=!event.matches || !currentServer;});
-form.addEventListener("input", () => { if (baseline) dirty = JSON.stringify(snapshot()) !== JSON.stringify(baseline); updateSave(); });
-form.addEventListener("change", () => { if (baseline) dirty = JSON.stringify(snapshot()) !== JSON.stringify(baseline); updateSave(); });
+function settingsEdited() {
+  if (form.querySelector("[data-save-invalid]")) {clearSettingsErrors();message("");}
+  screeningRequirements();
+  if (baseline) dirty = JSON.stringify(snapshot()) !== JSON.stringify(baseline);
+  updateSave();
+}
+form.addEventListener("input", settingsEdited);
+form.addEventListener("change", settingsEdited);
 $("#reset-settings").addEventListener("click", () => {if (baseline) fill(baseline); message("");});
 form.addEventListener("submit", async event => {
-  event.preventDefault(); if (preview || busy || !dirty || !form.reportValidity()) return;
+  event.preventDefault(); if (preview || busy || !dirty) return;
+  clearSettingsErrors(); message(""); screeningRequirements();
   const proposed = {...snapshot(),setup_completed:true};
+  if (proposed.screening.enabled && !proposed.screening.verified_role_id) {settingsFieldError(form.elements.screening_verified_role_id,"Choose the Verified access role members should receive after verification. Create a regular role in Discord first if needed, then refresh this server.");return;}
+  if (proposed.screening.enabled && !proposed.screening.entry_channel_id) {settingsFieldError(form.elements.screening_entry_channel_id,"Choose the entry channel where members will read the rules and request verification.");return;}
+  const invalid = Array.from(form.elements).find(control => control.willValidate && !control.validity.valid);
+  if (invalid) {settingsFieldError(invalid,invalid.validationMessage || "Check this field before saving.");return;}
   if (proposed.bad_words.length > 100 || proposed.bad_words.some(word => word.length > 80)) {message("Use up to 100 phrases, each 80 characters or fewer.", true); return;}
   if (Object.values(proposed.hate_filters).some(config => [config.extra_terms,config.allowed_terms].some(list => list.length > 100 || list.some(term => term.length > 80)))) {message("Each category list supports up to 100 phrases of 80 characters or fewer.",true); return;}
   if (proposed.exempt_roles.length > 100) {message("Choose up to 100 exempt roles.", true); return;}
-  if (proposed.screening.enabled && (!proposed.screening.verified_role_id || !proposed.screening.entry_channel_id)) {message("Choose a verified access role and an entry channel before enabling screening.",true);return;}
   if (proposed.screening.enabled && !screeningEventsEnabled) {message("Automatic join tracking is unavailable. Ask Espresso's operator to set ENABLE_MEMBER_SCREENING_EVENTS=true in the hosting computer's .env, enable Server Members Intent in Discord, and restart Espresso.",true);return;}
   if (!proposed.screening.rules_text) {message("Enter the rules members should agree to.",true);return;}
   const changes = Object.fromEntries(Object.entries(proposed).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(baseline[key])));
@@ -273,6 +313,7 @@ function renderScreening(config) {
     const control = form.elements[`screening_${key}`];
     if(typeof value === "boolean") control.checked = value; else control.value = value ?? "";
   }
+  screeningRequirements();
   $("#screening-event-status").textContent = preview ? "Preview only. No members are screened here." : screeningEventsEnabled ? "Automatic join tracking is available. Save your policy before posting the verification button." : "Automatic join tracking is unavailable. Ask the bot operator to set ENABLE_MEMBER_SCREENING_EVENTS=true in the hosting computer's .env, enable Server Members Intent in Discord, and restart Espresso.";
 }
 function renderReactions(mappings) {$("#reaction-role-options").replaceChildren(); mappings.forEach(addReactionRow);}

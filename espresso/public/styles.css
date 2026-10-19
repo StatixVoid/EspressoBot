@@ -78,3 +78,10 @@
 #retry-server { margin-top:.6rem; }
 @media(max-width:700px) { .panel-tabs { gap:.2rem; } .panel-tabs button { padding:.6rem .35rem; font-size:.69rem; } .section-toolbar { flex-direction:column; } .section-toolbar .button { width:100%; } .activity-card { padding:1rem; } .review-actions .button { flex:1; } .server-item { min-height:52px; } .text-button { min-height:44px; } }
 @media(max-width:700px) { #server-picker { border:1px solid var(--border); border-radius:12px; background:#fff9fd99; } #server-picker summary { position:relative; cursor:pointer; padding:.7rem 2.3rem .7rem 1rem; font-size:1rem; min-height:60px; } #server-picker summary::after { content:"⌄"; position:absolute; right:1rem; top:1rem; } #server-picker[open] summary::after { content:"⌃"; } #picker-name { display:block; font:600 .76rem "Plus Jakarta Sans","Segoe UI",sans-serif; color:var(--accent); margin-top:.3rem; overflow-wrap:anywhere; } .server-picker-content { padding:0 1rem 1rem; } }
+
+/* Save feedback stays beside the controls and points to the field that needs attention. */
+#settings-form [aria-invalid="true"] { border:2px solid #a33758; background:#fff4f7; }
+#settings-form .settings-field-error { color:#962b4d; font-size:.72rem; font-weight:500; line-height:1.6; }
+.save-bar > div:first-child { min-width:0; }
+.save-bar .save-feedback { font-size:.73rem; line-height:1.65; margin-top:.55rem; max-width:40rem; overflow-wrap:anywhere; color:#5a4463; }
+.save-bar .save-feedback-error { color:#962b4d; }
