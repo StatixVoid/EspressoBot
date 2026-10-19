@@ -81,3 +81,37 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", () => { clearTimeout(statsTimer); statsController?.abort(); });
 refreshStats();
+
+// Cards are rendered by the server so the full menu also works without JavaScript.
+(() => {
+  const browser = document.querySelector("#feature-browser");
+  if (!browser) return;
+  const cards = Array.from(document.querySelectorAll("#feature-catalog .feature-menu-card"));
+  const filters = Array.from(browser.querySelectorAll("[data-feature-filter]"));
+  const search = document.querySelector("#feature-search");
+  const count = document.querySelector("#feature-result-count");
+  const empty = document.querySelector("#feature-empty");
+  const searchable = new Map(cards.map(card => [card,card.textContent.toLocaleLowerCase()]));
+  let group = "all";
+  function update() {
+    const words = search.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    let visible = 0;
+    for (const card of cards) {
+      const matches = (group === "all" || card.dataset.featureGroup === group) && words.every(word => searchable.get(card).includes(word));
+      card.hidden = !matches;
+      if (matches) visible++;
+    }
+    filters.forEach(button => button.setAttribute("aria-pressed",String(button.dataset.featureFilter === group)));
+    count.textContent = `Showing ${visible} of ${cards.length} features`;
+    empty.hidden = visible > 0;
+  }
+  function reset() {group="all";search.value="";update();}
+  filters.forEach(button => button.addEventListener("click",()=>{group=button.dataset.featureFilter;update();}));
+  search.addEventListener("input",update);
+  document.querySelector("#feature-reset").addEventListener("click",()=>{reset();search.focus();});
+  window.addEventListener("hashchange",()=>{
+    const target=document.getElementById(location.hash.slice(1));
+    if (target && cards.includes(target) && target.hidden) {reset();target.scrollIntoView({block:"start"});}
+  });
+  update();browser.hidden=false;
+})();

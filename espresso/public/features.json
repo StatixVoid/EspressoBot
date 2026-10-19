@@ -3,233 +3,254 @@
     {
       "id": "spam-protection",
       "status": "available",
-      "category": "The first line",
-      "title": "Less noise. More conversation.",
-      "description": "Catch message spam, unwanted Discord invites, links, and the words you choose to block. Edited messages get checked, too.",
+      "category": "Message moderation",
+      "title": "Spam, links & blocked words",
+      "description": "Filter bursts of messages, Discord invites, website links, and your own blocked phrases. Espresso checks new messages and text edits in channels it can access.",
       "link": {
-        "href": "/preview",
-        "label": "Explore the filters"
-      }
+        "href": "#community-filters",
+        "label": "Meet the moderation controls"
+      },
+      "group": "moderation"
     },
     {
       "id": "identity-filters",
       "status": "available",
-      "category": "Clear boundaries",
-      "title": "Care, with a little more control.",
-      "description": "Adjust racism, misogyny, and anti-trans hate filters separately, with five coverage levels, your own terms, exceptions, and a choice of action.",
+      "category": "Abuse filters",
+      "title": "Clear boundaries, category by category",
+      "description": "Set racism, misogyny, and anti-trans hate filters separately. Choose coverage from 1–5, an action, extra blocked terms, and exact-match exceptions.",
       "link": {
         "href": "#community-filters",
-        "label": "See the coverage levels"
-      }
+        "label": "Understand the five levels"
+      },
+      "group": "moderation"
     },
     {
       "id": "warnings-and-timeouts",
       "status": "available",
-      "category": "Fair boundaries",
-      "title": "A warning before a breather.",
-      "description": "Keep a warning history and choose when repeated warnings lead to a timeout. Staff stay in control with manual moderation commands.",
+      "category": "Warnings & timeouts",
+      "title": "Measured action, with a history",
+      "description": "Record warnings and choose when repeated warnings lead to a timeout. Staff can use manual commands, review moderation cases, and remove an individual mistaken warning.",
       "link": {
         "href": "#moderation-examples",
-        "label": "See Espresso in action"
-      }
+        "label": "See an example"
+      },
+      "group": "moderation"
     },
     {
       "id": "community-roles",
       "status": "available",
-      "category": "Find your people",
-      "title": "A small choice. A new connection.",
-      "description": "Offer reaction roles or persistent button and dropdown menus, with descriptions, choose-one groups, and selection limits.",
+      "category": "Role templates & menus",
+      "title": "Let members choose their place",
+      "description": "Post ready-to-edit gender, pronoun, country, interest, notification, and color-label templates. Offer reactions, buttons, or dropdowns with the selection rules your server needs.",
       "link": {
-        "href": "/preview",
-        "label": "Explore the dashboard"
-      }
+        "href": "#reaction-roles",
+        "label": "Explore roles and templates"
+      },
+      "group": "welcome"
     },
     {
       "id": "server-controls",
       "status": "available",
-      "category": "Your own recipe",
-      "title": "Every server gets its own blend.",
-      "description": "Use guided setup, adjust your server's rules in the web panel, choose exempt roles, and send moderation outcomes to a private staff log.",
+      "category": "Server settings",
+      "title": "A recipe for each server",
+      "description": "Use guided setup, choose trusted role exemptions and a private staff log, then fine-tune the controls in a dashboard that fits a phone.",
       "link": {
-        "href": "/preview",
-        "label": "Take a look at the panel"
-      }
+        "href": "#how-it-works",
+        "label": "Get your server started"
+      },
+      "group": "staff"
     },
     {
       "id": "member-screening",
       "status": "available",
-      "category": "Member screening",
-      "title": "A thoughtful first hello.",
-      "description": "Choose account-age checks or manual review, collect rules agreement, and grant a Verified access role when your policy is met. Staff manage requests in Member review.",
+      "category": "Member verification",
+      "title": "A thoughtful first hello",
+      "description": "Review every new member or flag accounts below your chosen age. Collect rules agreement when required, then grant a Verified access role after the configured checks pass.",
       "link": {
         "href": "#member-screening-guide",
-        "label": "Meet member screening"
-      }
+        "label": "See how verification works"
+      },
+      "group": "welcome"
     },
     {
       "id": "private-staff-desk",
       "status": "available",
-      "category": "Room to be heard",
-      "title": "A quieter way to ask for help.",
-      "description": "Send private reports and appeals, track your own requests, and receive optional private outcomes. Moderators get a dedicated desk with internal notes and separate member-facing responses.",
+      "category": "Reports & appeals",
+      "title": "Give concerns a private place",
+      "description": "Members submit reports and appeals and track their own requests. Staff assign reviewers, keep internal notes, and choose a separate member-facing response.",
       "link": {
-        "href": "/preview",
-        "label": "Explore the dashboard"
-      }
+        "href": "#staff-workspace",
+        "label": "Meet your staff workspace"
+      },
+      "group": "staff"
     },
     {
       "id": "flexible-filter-controls",
       "status": "available",
-      "category": "A more personal recipe",
-      "title": "Different channels. Different needs.",
-      "description": "Choose trusted websites and channel rules, then simulate saved or unsaved settings with member roles, warning history, cooldowns, and clear outcome explanations.",
+      "category": "Filter tuning",
+      "title": "Different channels, different needs",
+      "description": "Set trusted domains and channel-specific rules. Test a saved or unsaved recipe against example text, roles, warning history, and cooldowns before using it.",
       "link": {
-        "href": "/preview",
-        "label": "Explore the dashboard"
-      }
+        "href": "#community-filters",
+        "label": "Find your moderation recipe"
+      },
+      "group": "moderation"
     },
     {
       "id": "raid-protection",
       "status": "available",
-      "category": "Keep the café calm",
-      "title": "A little breathing room.",
-      "description": "Watch for join spikes and coordinated repeated messages. Exclude channels or categories, track active protection, extend or end timers, and restore prior settings.",
+      "category": "Raid protection",
+      "title": "A response when chat gets crowded",
+      "description": "Watch for sudden joins and repeated text from multiple members. Configure alerts or temporary channel protection, exclusions, and restoration of previous settings.",
       "link": {
-        "href": "/preview",
-        "label": "Explore the dashboard"
-      }
+        "href": "#staff-workspace",
+        "label": "See the tools for staff"
+      },
+      "group": "moderation"
     },
     {
       "id": "server-health-checks",
       "status": "available",
-      "category": "Ready for your next shift",
-      "title": "Know what needs a little care.",
-      "description": "Check moderation permissions, role placement, log channels, member events, and verification access setup, with clear steps for fixing issues.",
+      "category": "Permission checks",
+      "title": "Know what needs attention",
+      "description": "Check bot permissions, role placement, log channels, member-event access, and verification gating. The dashboard explains what to fix when a requirement is missing.",
       "link": {
-        "href": "/preview",
-        "label": "Explore server checks"
-      }
+        "href": "#how-it-works",
+        "label": "Prepare your server"
+      },
+      "group": "staff"
     },
     {
       "id": "community-announcements",
       "status": "available",
-      "category": "Make yourself at home",
-      "title": "A warm hello. Something to look forward to.",
-      "description": "Customize welcome cards and schedule local-time announcements in a named timezone. Use a calendar, daily or weekly repeats, editing, pause/resume, and reviewed delivery recovery.",
+      "category": "Welcomes & announcements",
+      "title": "Keep everyone in the loop",
+      "description": "Customize welcome cards and schedule announcements in a named timezone. Edit, pause, or repeat posts, and review delivery issues before attempting another send.",
       "link": {
-        "href": "/preview",
-        "label": "Explore the dashboard"
-      }
+        "href": "#community-hub-guide",
+        "label": "Explore the community toolkit"
+      },
+      "group": "welcome"
     },
     {
       "id": "cafe-personality",
       "status": "available",
-      "category": "A little Espresso personality",
-      "title": "Good company, freshly brewed.",
-      "description": "Design coffee cards, create Discord polls, and post from your own conversation prompt library. Each server chooses its café features.",
+      "category": "Coffee, polls & prompts",
+      "title": "A little personality on the house",
+      "description": "Design coffee cards, create Discord polls, and use your own conversation prompt library. Each server chooses which café features to enable.",
       "link": {
-        "href": "/preview",
-        "label": "Explore the dashboard"
-      }
+        "href": "#community-hub-guide",
+        "label": "Find your community extras"
+      },
+      "group": "community"
     },
     {
       "id": "overview-and-history",
       "status": "available",
-      "category": "A clearer next shift",
-      "title": "See what needs attention. Know what changed.",
-      "description": "Review waiting reports, verification requests, delivery issues, and server health. Managers can inspect settings history and preview a previous recipe before restoring it.",
+      "category": "Activity & settings history",
+      "title": "Keep the shift in view",
+      "description": "See reports, verification requests, delivery issues, and server health. Review action logs and settings history, then preview an earlier configuration before restoring it.",
       "link": {
-        "href": "/preview",
-        "label": "Meet the overview"
-      }
+        "href": "#staff-workspace",
+        "label": "Look around the workspace"
+      },
+      "group": "staff"
     },
     {
       "id": "support-tickets",
       "status": "available",
-      "category": "Community hub",
-      "title": "A private place to work things out.",
-      "description": "Open private support rooms, let the team claim and close tickets, and request an optional text transcript retained for 30 days.",
+      "category": "Support tickets",
+      "title": "A quieter room for support",
+      "description": "Open private ticket channels that the support team can claim and close. Members can request a text transcript when the server allows it; saved transcripts expire after 30 days.",
       "link": {
-        "href": "/preview",
-        "label": "Explore Community hub"
-      }
+        "href": "#community-hub-guide",
+        "label": "See support and community tools"
+      },
+      "group": "staff"
     },
     {
       "id": "community-events",
       "status": "available",
-      "category": "Community hub",
-      "title": "Give everyone something to look forward to.",
-      "description": "Create Discord events with opt-in DM reminders and dedicated event roles that expire when the gathering ends.",
+      "category": "Events & reminders",
+      "title": "Give people a reason to gather",
+      "description": "Create native Discord scheduled events. Members opt into DM reminders and any configured event role; Espresso removes its temporary role grants after the gathering ends.",
       "link": {
-        "href": "/preview",
-        "label": "Explore Community hub"
-      }
+        "href": "#community-hub-guide",
+        "label": "Plan a little together time"
+      },
+      "group": "community"
     },
     {
       "id": "suggestion-board",
       "status": "available",
-      "category": "Community hub",
-      "title": "Good ideas deserve a place to grow.",
-      "description": "Submit ideas, vote with persistent buttons, and follow public staff updates from review through completion.",
+      "category": "Suggestions",
+      "title": "Let good ideas find their people",
+      "description": "Members submit ideas and vote with persistent buttons. Staff share public status updates as suggestions move from review to a decision or completion.",
       "link": {
-        "href": "/preview",
-        "label": "Explore Community hub"
-      }
+        "href": "#community-hub-guide",
+        "label": "Make room for ideas"
+      },
+      "group": "community"
     },
     {
       "id": "personal-voice-rooms",
       "status": "available",
-      "category": "Community hub",
-      "title": "A table for your own little group.",
-      "description": "Join a lobby to create a personal voice room. Set its name, size, and connection controls; empty rooms clean themselves up.",
+      "category": "Temporary voice rooms",
+      "title": "A table for a smaller group",
+      "description": "Join a configured lobby to create a personal voice room. Owners adjust its name, size, and connection controls; Espresso cleans up empty rooms.",
       "link": {
-        "href": "/preview",
-        "label": "Explore Community hub"
-      }
+        "href": "#community-hub-guide",
+        "label": "Explore the ways to gather"
+      },
+      "group": "community"
     },
     {
       "id": "saved-replies",
       "status": "available",
-      "category": "Community hub",
-      "title": "Helpful answers, ready when you need them.",
-      "description": "Staff write searchable FAQ replies that members find with /faq and /tag. Keep common questions easy to answer.",
+      "category": "FAQ & saved replies",
+      "title": "Helpful answers, within reach",
+      "description": "Staff write searchable FAQ entries. Members find saved answers with /faq or /tag, so useful server information is easier to find again.",
       "link": {
-        "href": "/preview",
-        "label": "Explore Community hub"
-      }
+        "href": "#community-hub-guide",
+        "label": "Keep the helpful things close"
+      },
+      "group": "community"
     },
     {
       "id": "birthday-celebrations",
       "status": "available",
-      "category": "Community hub",
-      "title": "A little birthday sweetness.",
-      "description": "Members opt into greetings and an optional birthday role. Only month and day are stored, with celebrations following the server timezone.",
+      "category": "Birthdays",
+      "title": "A little birthday sweetness",
+      "description": "Members opt into a greeting and an optional birthday role. Espresso stores the month and day, and follows the server's chosen timezone for celebrations.",
       "link": {
-        "href": "/preview",
-        "label": "Explore Community hub"
-      }
+        "href": "#community-hub-guide",
+        "label": "Choose your community extras"
+      },
+      "group": "community"
     },
     {
       "id": "community-highlights",
       "status": "available",
-      "category": "Community hub",
-      "title": "Keep the lovely moments close.",
-      "description": "Collect starred messages from approved public channels. Members can opt out and staff can remove highlights.",
+      "category": "Starred highlights",
+      "title": "Keep the lovely moments close",
+      "description": "Share starred messages from approved public channels. Members can opt out, and staff can remove highlights; private-channel messages stay out of the board.",
       "link": {
-        "href": "/preview",
-        "label": "Explore Community hub"
-      }
+        "href": "#community-hub-guide",
+        "label": "Celebrate your community"
+      },
+      "group": "community"
     },
     {
       "id": "cafe-profiles",
       "status": "available",
-      "category": "Community hub",
-      "title": "Your own familiar face at the café.",
-      "description": "Create optional profile cards, thank helpful members, and collect staff-awarded community badges without message-count leveling.",
+      "category": "Profiles, thanks & badges",
+      "title": "Familiar faces, a little appreciation",
+      "description": "Members create optional café profiles and thank one another. Staff award community badges; there is no message-count leveling or pressure to keep posting.",
       "link": {
-        "href": "/preview",
-        "label": "Explore Community hub"
-      }
+        "href": "#community-hub-guide",
+        "label": "Make it feel like your people"
+      },
+      "group": "community"
     }
   ]
 }

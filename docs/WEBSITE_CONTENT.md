@@ -2,7 +2,7 @@
 
 The home page's **On the menu** section is rendered from `espresso/public/features.json`. It works without browser JavaScript. Add a feature to this file rather than building another separate set of cards.
 
-Each feature has a unique lowercase `id`, `status`, `category`, `title`, and `description`. Available features may also have a `link` with a local `href` and `label`.
+Each feature has a unique lowercase `id`, `status`, `category`, `title`, and `description`. Available features may also have a `link` with a local `href` and `label`. Set `group` to `moderation`, `welcome`, `staff`, or `community` for the homepage filters. Older entries without a group remain visible under Everything.
 
 Statuses:
 
@@ -24,3 +24,5 @@ For each new feature:
 The catalog is read on each home-page request. Updating it on the running origin does not require a frontend build. Backend changes still require a process restart.
 
 The public bio copy is kept in `assets/branding/discord-bio.txt`.
+
+The homepage feature browser filters the server-rendered cards by group and text. Keep descriptions specific about what members or staff can do, and mention opt-in behavior or important requirements. Without JavaScript, every card and its local detail link remains available. The workflow board is explicitly illustrative; real server activity is private.
