@@ -164,7 +164,7 @@ form.addEventListener("submit", async event => {
   if (Object.values(proposed.hate_filters).some(config => [config.extra_terms,config.allowed_terms].some(list => list.length > 100 || list.some(term => term.length > 80)))) {message("Each category list supports up to 100 phrases of 80 characters or fewer.",true); return;}
   if (proposed.exempt_roles.length > 100) {message("Choose up to 100 exempt roles.", true); return;}
   if (proposed.screening.enabled && (!proposed.screening.verified_role_id || !proposed.screening.entry_channel_id)) {message("Choose a verified access role and an entry channel before enabling screening.",true);return;}
-  if (proposed.screening.enabled && !screeningEventsEnabled) {message("Automatic join tracking is unavailable. Ask Espresso's operator to enable member events first.",true);return;}
+  if (proposed.screening.enabled && !screeningEventsEnabled) {message("Automatic join tracking is unavailable. Ask Espresso's operator to set ENABLE_MEMBER_SCREENING_EVENTS=true in the hosting computer's .env, enable Server Members Intent in Discord, and restart Espresso.",true);return;}
   if (!proposed.screening.rules_text) {message("Enter the rules members should agree to.",true);return;}
   const changes = Object.fromEntries(Object.entries(proposed).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(baseline[key])));
   busy = true; updateSave(); Array.from(form.elements).forEach(element => element.disabled = true);
@@ -268,7 +268,7 @@ function renderScreening(config) {
     const control = form.elements[`screening_${key}`];
     if(typeof value === "boolean") control.checked = value; else control.value = value ?? "";
   }
-  $("#screening-event-status").textContent = preview ? "Preview only. No members are screened here." : screeningEventsEnabled ? "Automatic join tracking is available. Save your policy before posting the verification button." : "Automatic join tracking is unavailable. Ask the bot operator to enable member events before turning screening on.";
+  $("#screening-event-status").textContent = preview ? "Preview only. No members are screened here." : screeningEventsEnabled ? "Automatic join tracking is available. Save your policy before posting the verification button." : "Automatic join tracking is unavailable. Ask the bot operator to set ENABLE_MEMBER_SCREENING_EVENTS=true in the hosting computer's .env, enable Server Members Intent in Discord, and restart Espresso.";
 }
 function renderReactions(mappings) {$("#reaction-role-options").replaceChildren(); mappings.forEach(addReactionRow);}
 function addReactionRow(mapping = {channel_id:availableChannels[0]?.id || "",message_id:"",emoji:"✅",role_id:"",remove_on_unreact:true}) {

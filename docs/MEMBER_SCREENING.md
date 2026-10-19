@@ -10,7 +10,7 @@ Enable **Server Members Intent** under Discord Developer Portal → Bot → Priv
 ENABLE_MEMBER_SCREENING_EVENTS=true
 ```
 
-The flag defaults to false so existing moderation-only installations keep working. Presence Intent is unnecessary. This does not change OAuth scopes or require Administrator. See [discord.py's member intent documentation](https://discordpy.readthedocs.io/en/stable/intents.html#member-intent).
+The flag defaults to false so existing moderation-only installations keep working. Discord's portal switch and this host setting are both required. Add the setting on the computer running the public bot, then restart Espresso; enabling it on a separate development computer does not update the server. Git pulls preserve the private `.env` and do not add this setting automatically. Presence Intent is unnecessary. This does not change OAuth scopes or require Administrator. See [discord.py's member intent documentation](https://discordpy.readthedocs.io/en/stable/intents.html#member-intent).
 
 ## Configure each server on the website
 

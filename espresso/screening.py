@@ -19,7 +19,7 @@ class ScreeningManager:
         if not config["enabled"]:
             return
         if not self.bot.intents.members:
-            raise ValueError("Automatic join tracking is unavailable. Ask Espresso's operator to enable member events before turning screening on.")
+            raise ValueError("Automatic join tracking is unavailable. Enable member events by setting ENABLE_MEMBER_SCREENING_EVENTS=true in Espresso's .env on the hosting computer, enable Server Members Intent in Discord, then restart Espresso.")
         if not actor.guild_permissions.manage_guild or not actor.guild_permissions.manage_roles:
             raise ValueError("You need Manage Server and Manage Roles to configure member screening.")
         await self.access_role(guild, config, actor)
