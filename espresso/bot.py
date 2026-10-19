@@ -198,16 +198,25 @@ class Espresso(discord.Client):
 
     async def issue_warning(self, guild: discord.Guild, member: discord.Member,
                             moderator_id: int, reason: str, source: str,
-                            settings: Settings, automatic: bool = False, force_timeout: bool = False) -> str | None:
+                            settings: Settings, automatic: bool = False, force_timeout: bool = False,
+                            unicode_evasion: bool = False) -> str | None:
+        independent_timeout = None
+        if unicode_evasion:
+            timeout_case,claimed = await self.store.claim_unicode_timeout(guild.id,member.id,moderator_id,reason,source)
+            if not claimed:
+                return None
+            independent_timeout = await self.set_timeout(member,settings.timeout_minutes,f"Espresso Unicode evasion; case {timeout_case}")
+            await self.store.finish_unicode_timeout(guild.id,timeout_case,independent_timeout)
+            await self.log_action(guild,"Unicode evasion timeout",f"Case #{timeout_case} · member {member.id}\n{independent_timeout}")
         warning_id, count = await self.store.warn(
             guild.id, member.id, moderator_id, reason, source,
             settings.warn_window_hours, automatic=automatic,
         )
         if warning_id is None:
-            return None
+            return f"Case #{timeout_case}. {independent_timeout} Warning cooldown or message deduplication preserved." if unicode_evasion else None
         case_id = await self.store.record_case(guild.id,member.id,moderator_id,"warning",reason,"Warning recorded",f"warning:{warning_id}",warning_id)
-        escalation = "No timeout."
-        if force_timeout or (settings.warn_threshold and count >= settings.warn_threshold):
+        escalation = independent_timeout or "No timeout."
+        if not unicode_evasion and (force_timeout or (settings.warn_threshold and count >= settings.warn_threshold)):
             escalation = await self.set_timeout(member, settings.timeout_minutes,
                                                 f"Espresso {'category action' if force_timeout else 'warning threshold'}; case {case_id}")
             await self.store.record_case(guild.id,member.id,moderator_id,"timeout",reason,escalation,f"escalation:{warning_id}")
@@ -325,7 +334,9 @@ class Espresso(discord.Client):
                 deletion = "Message deleted."
             except discord.NotFound:
                 # Another moderator or bot already handled this message.
-                return
+                if not decision.unicode_evasion:
+                    return
+                deletion = "Message already removed."
             except discord.HTTPException as exc:
                 deletion = f"Deletion failed (Discord HTTP {exc.status}); check Manage Messages."
             await self.log_action(guild, "Automatic filter",
@@ -335,7 +346,7 @@ class Espresso(discord.Client):
             if decision.action != "delete":
                 warning_result = await self.issue_warning(guild, member, self.user.id, violation,
                                          f"message:{message.id}", settings, automatic=True,
-                                         force_timeout=decision.action == "timeout")
+                                         force_timeout=decision.action == "timeout",unicode_evasion=decision.unicode_evasion)
             if warning_result is None:
                 await self.store.record_case(guild.id,member.id,self.user.id,"filter_delete",violation,deletion,f"delete:{message.id}")
 

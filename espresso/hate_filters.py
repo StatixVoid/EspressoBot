@@ -5,8 +5,11 @@ The lists are deliberately small, inspectable, cumulative, and administrator-tun
 """
 
 from dataclasses import dataclass
+from functools import lru_cache
 import re
 import unicodedata
+
+from .evasion import evasion_view, literal_evasion, phrase_evasion, unicode_disguise
 
 CATEGORIES = {"racism": "Racism", "misogyny": "Misogyny", "trans_hate": "Anti-trans hate"}
 ACTIONS = {"delete", "warn", "timeout"}
@@ -14,8 +17,8 @@ LEVELS = {
     1: "Core explicit slurs",
     2: "Expanded slur vocabulary",
     3: "Discriminatory and exclusionary phrases",
-    4: "Common spaced, punctuated, and leetspeak slur evasions",
-    5: "Broader identity-directed insults and stereotypes",
+    4: "Spacing, punctuation, leetspeak, repetition, and Unicode evasions of slurs and phrases",
+    5: "Broader identity-directed insults and stereotypes, including their evasions",
 }
 
 # Level 2 includes level 1. Higher levels add patterns, not stronger penalties.
@@ -82,6 +85,7 @@ class ContentDecision:
     reason: str
     action: str = "warn"
     category: str | None = None
+    unicode_evasion: bool = False
 
 
 def boundary(pattern: str) -> str:
@@ -93,32 +97,75 @@ def literal_pattern(term: str) -> str:
     return re.escape(term) + (r"s?" if term[-1].isalpha() and not term.endswith("s") else "")
 
 
-LEET = {"a": "[a4@]", "e": "[e3]", "i": "[i1!]", "l": "[l1]", "o": "[o0]", "s": "[s5$]", "t": "[t7]"}
-
-
 def evasion_pattern(term: str) -> str:
-    return r"[\W_]{0,3}".join(LEET.get(char, re.escape(char)) for char in term) + r"s?"
+    return literal_evasion(text_key(term),plural=True)
+
+
+@lru_cache(maxsize=15)
+def starter_patterns(category,level):
+    literals,evasions = [],[]
+    for minimum,terms in TERMS[category].items():
+        if level>=minimum:
+            literals.extend(literal_pattern(term) for term in terms)
+            if level>=4:
+                evasions.extend(evasion_pattern(term) for term in terms)
+    for minimum,patterns in PATTERNS[category].items():
+        if level>=minimum:
+            literals.extend(patterns)
+            if level>=4:
+                evasions.extend(phrase_evasion(pattern) for pattern in patterns)
+    return tuple(re.compile(boundary(pattern)) for pattern in literals),tuple(re.compile(boundary(pattern)) for pattern in evasions)
+
+
+@lru_cache(maxsize=1024)
+def extra_pattern(term,evasive=False):
+    pattern = literal_evasion(term) if evasive else re.escape(term)
+    return re.compile(boundary(pattern)) if pattern else None
 
 
 def detect(text: str, filters: dict) -> ContentDecision | None:
+    original = text
+    text = text_key(text)
+    folded = None
+    normalized = None
     matches = []
     for category, config in filters.items():
         if not config["enabled"]:
             continue
         allowed = {text_key(v).strip() for v in config["allowed_terms"]}
-        patterns = []
-        for minimum, terms in TERMS[category].items():
-            if config["level"] >= minimum:
-                patterns.extend(literal_pattern(term) for term in terms)
-                if config["level"] >= 4:
-                    patterns.extend(evasion_pattern(term) for term in terms)
-        for minimum, rules in PATTERNS[category].items():
-            if config["level"] >= minimum:
-                patterns.extend(rules)
-        patterns.extend(re.escape(text_key(term).strip()) for term in config["extra_terms"])
-        for pattern in patterns:
-            if any(text_key(match.group()).strip() not in allowed for match in re.finditer(boundary(pattern), text)):
-                matches.append(ContentDecision(f"{CATEGORIES[category]} filter · level {config['level']}", config["action"], category))
-                break
+        explicit_unicode = {unicodedata.normalize("NFC",term).casefold().strip() for term in config["extra_terms"] if not term.isascii()}
+        def disguised_source(source):
+            return unicode_disguise(source) and unicodedata.normalize("NFC",source).casefold().strip() not in explicit_unicode
+        literal,evasive = starter_patterns(category,config["level"])
+        extras = tuple(text_key(term).strip() for term in config["extra_terms"])
+        literal += tuple(extra_pattern(term) for term in extras)
+        matched = any(match.group().strip() not in allowed for pattern in literal for match in pattern.finditer(text))
+        disguised = False
+        if matched and not original.isascii():
+            if normalized is None:
+                normalized = evasion_view(original,visual=False)
+            # Canonical composition can cross code points. Do not guess a source
+            # span when that happens; the level 4–5 visual pass handles it below.
+            if normalized.text == text:
+                disguised = any(text_key(normalized.source(match,original)).strip() not in allowed and disguised_source(normalized.source(match,original))
+                                for pattern in literal for match in pattern.finditer(normalized.text))
+        if not disguised and config["level"]>=4:
+            if folded is None:
+                folded = evasion_view(original)
+            evasive += tuple(pattern for term in extras if (pattern:=extra_pattern(term,True)) is not None)
+            for pattern in evasive:
+                for match in pattern.finditer(folded.text):
+                    source = folded.source(match,original)
+                    if text_key(source).strip() in allowed:
+                        continue
+                    matched = True
+                    if disguised_source(source):
+                        disguised = True
+                        break
+                if disguised:
+                    break
+        if matched:
+            reason = f"{CATEGORIES[category]} filter · level {config['level']}" + (" · Unicode evasion" if disguised else "")
+            matches.append(ContentDecision(reason,"timeout" if disguised else config["action"],category,disguised))
     # If several categories match, enforce the strongest configured action.
-    return max(matches, key=lambda match: {"delete":0,"warn":1,"timeout":2}[match.action], default=None)
+    return max(matches, key=lambda match: ({"delete":0,"warn":1,"timeout":2}[match.action],match.unicode_evasion), default=None)

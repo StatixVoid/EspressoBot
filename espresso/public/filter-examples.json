@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "notice": "Uncensored, authored examples for reviewing moderation coverage. These are abusive phrases used as test cases, not approved community language. Examples include earlier levels. Detection does not establish a person's intent.",
+  "categories": {
+    "racism": {
+      "1": {"title": "Core explicit slurs", "examples": [
+        {"text": "kike", "label": "Explicit slur", "unicode_evasion": false},
+        {"text": "ｋｉｋｅ", "label": "Full-width Unicode letters", "matches": "kike", "unicode_evasion": true}
+      ]},
+      "2": {"title": "Expanded vocabulary", "examples": [
+        {"text": "raghead", "label": "Additional slur", "unicode_evasion": false}
+      ]},
+      "3": {"title": "Discriminatory and exclusionary phrases", "examples": [
+        {"text": "no black people allowed", "label": "Exclusionary phrase", "unicode_evasion": false},
+        {"text": "asian people are inferior", "label": "Identity-directed abuse", "unicode_evasion": false}
+      ]},
+      "4": {"title": "Disguised slurs and phrases", "examples": [
+        {"text": "k . 1 . k . 3", "label": "Spacing, punctuation, and leetspeak", "matches": "kike", "unicode_evasion": false},
+        {"text": "nо blаck peоple аllоwed", "label": "Latin and Cyrillic lookalikes", "matches": "no black people allowed", "unicode_evasion": true}
+      ]},
+      "5": {"title": "Broader insults, including combined evasions", "examples": [
+        {"text": "black people are all criminals", "label": "Identity-directed stereotype", "unicode_evasion": false},
+        {"text": "b̶1̶а̶с̶k̶ 🧩 p̶3̶0̶p̶1̶3̶ 🧩 а̶r̶3̶ 🧩 а̶1̶1̶ 🧩 с̶r̶1̶m̶1̶ո̶а̶1̶ѕ̶", "label": "Combined evasion: Unicode lookalikes, combining marks, leetspeak, and emoji gaps", "matches": "black people are all criminals", "unicode_evasion": true}
+      ]}
+    },
+    "misogyny": {
+      "1": {"title": "Core explicit slurs", "examples": [
+        {"text": "femoid", "label": "Explicit slur", "unicode_evasion": false},
+        {"text": "ｆｅｍｏｉｄ", "label": "Full-width Unicode letters", "matches": "femoid", "unicode_evasion": true}
+      ]},
+      "2": {"title": "Expanded vocabulary", "examples": [
+        {"text": "bitch", "label": "Additional slur", "unicode_evasion": false}
+      ]},
+      "3": {"title": "Discriminatory and exclusionary phrases", "examples": [
+        {"text": "women belong in the kitchen", "label": "Discriminatory phrase", "unicode_evasion": false},
+        {"text": "women should not have rights", "label": "Exclusionary phrase", "unicode_evasion": false}
+      ]},
+      "4": {"title": "Disguised slurs and phrases", "examples": [
+        {"text": "b!tch", "label": "Leetspeak substitution", "matches": "bitch", "unicode_evasion": false},
+        {"text": "w​o​m​e​n bеlоng in thе kitсhеn", "label": "Invisible separators and mixed-script lookalikes", "matches": "women belong in the kitchen", "unicode_evasion": true}
+      ]},
+      "5": {"title": "Broader insults, including combined evasions", "examples": [
+        {"text": "women are all worthless", "label": "Identity-directed insult", "unicode_evasion": false},
+        {"text": "w̶0̶m̶3̶ո̶ 🧩 а̶r̶3̶ 🧩 а̶1̶1̶ 🧩 w̶0̶r̶т̶h̶1̶3̶ѕ̶ѕ̶", "label": "Combined evasion: Unicode lookalikes, combining marks, leetspeak, and emoji gaps", "matches": "women are all worthless", "unicode_evasion": true}
+      ]}
+    },
+    "trans_hate": {
+      "1": {"title": "Core explicit slurs", "examples": [
+        {"text": "tranny", "label": "Explicit slur", "unicode_evasion": false},
+        {"text": "ｔｒａｎｎｙ", "label": "Full-width Unicode letters", "matches": "tranny", "unicode_evasion": true}
+      ]},
+      "2": {"title": "Expanded vocabulary", "examples": [
+        {"text": "troon", "label": "Additional slur", "unicode_evasion": false}
+      ]},
+      "3": {"title": "Discriminatory and exclusionary phrases", "examples": [
+        {"text": "no trans people allowed", "label": "Exclusionary phrase", "unicode_evasion": false},
+        {"text": "trans people shouldn't have rights", "label": "Identity-directed abuse", "unicode_evasion": false}
+      ]},
+      "4": {"title": "Disguised slurs and phrases", "examples": [
+        {"text": "t.r.4.n.n.y", "label": "Punctuation and leetspeak", "matches": "tranny", "unicode_evasion": false},
+        {"text": "n​o t​rаnѕ p​eоple allоwed", "label": "Invisible separators and Cyrillic lookalikes", "matches": "no trans people allowed", "unicode_evasion": true}
+      ]},
+      "5": {"title": "Broader insults, including combined evasions", "examples": [
+        {"text": "trans people are all predators", "label": "Identity-directed stereotype", "unicode_evasion": false},
+        {"text": "т̶​r̶@̶ո̶ѕ̶ 🧩 p̶3̶о̶p̶1̶3̶ 🧩 @̶r̶3̶ 🧩 @̶1̶1̶ 🧩 p̶r̶3̶d̶@̶т̶0̶r̶ѕ̶", "label": "Combined evasion: hidden characters, Unicode lookalikes, combining marks, leetspeak, and emoji gaps", "matches": "trans people are all predators", "unicode_evasion": true}
+      ]}
+    }
+  }
+}

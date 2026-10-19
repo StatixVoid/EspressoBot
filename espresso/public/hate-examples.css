@@ -1,0 +1,16 @@
+.hate-examples { margin:.5rem 0 1.2rem;font-size:.8rem; }
+.hate-examples>summary { cursor:pointer;color:var(--accent);font-weight:600;padding:.55rem 0;min-height:40px; }
+.hate-examples>summary::after { content:" · uncensored";font-size:.7rem;font-weight:400;color:var(--muted); }
+.hate-example-content { padding:1rem;border:1px solid var(--border);border-radius:12px;background:var(--surface,#fff9fd); }
+.hate-example-content p { line-height:1.7; }
+.example-notice { font-size:.75rem;border-left:3px solid var(--accent);padding-left:.8rem;color:var(--muted); }
+.hate-example-group { margin-top:1.2rem; }
+.hate-example-group h4 { font:600 .8rem "Plus Jakarta Sans","Segoe UI",sans-serif;margin:0 0 .7rem;line-height:1.6; }
+.hate-example-group ul { list-style:none;margin:0;padding:0; }
+.hate-example-group li { padding:.8rem 0;border-top:1px solid var(--border);min-width:0; }
+.example-label,.example-outcome { display:block;font-size:.7rem;color:var(--muted);line-height:1.6; }
+.example-text { display:block;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;padding:.7rem;margin:.4rem 0;border-radius:8px;background:var(--surface-soft,#f4e7f5);font:400 1rem/1.8 "Cascadia Code",Consolas,monospace;unicode-bidi:plaintext;user-select:text; }
+.example-readable { font-size:.7rem;margin:.3rem 0;overflow-wrap:anywhere; }
+.example-timeout { color:#81444c;font-weight:600; }
+.unicode-policy-note { font-size:.76rem;padding:.8rem 1rem;border:1px solid var(--border);border-radius:10px;background:var(--surface-soft); }
+@media(max-width:700px) { .hate-example-content { padding:.8rem; } .example-text { font-size:.9rem; } }

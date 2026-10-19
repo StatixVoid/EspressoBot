@@ -76,6 +76,21 @@ class CommunityStore(RefinementStore):
             async with self.db.execute("SELECT id FROM moderation_cases WHERE guild_id=? AND source=?", (guild_id,source)) as cur:
                 return (await cur.fetchone())[0]
 
+    async def claim_unicode_timeout(self, guild_id, user_id, actor_id, reason, source):
+        async with self.lock:
+            cursor = await self.db.execute("INSERT OR IGNORE INTO moderation_cases(guild_id,user_id,actor_id,kind,reason,outcome,source,created_at) VALUES (?,?,?,'timeout',?,'Unicode evasion timeout pending; check Discord if interrupted.',?,?)",
+                (guild_id,user_id,actor_id,reason[:1000],"unicode-timeout:"+source,time.time()))
+            claimed = bool(cursor.rowcount)
+            async with self.db.execute("SELECT id FROM moderation_cases WHERE guild_id=? AND source=?", (guild_id,"unicode-timeout:"+source)) as cursor:
+                case_id = (await cursor.fetchone())[0]
+            await self.db.commit()
+            return case_id,claimed
+
+    async def finish_unicode_timeout(self, guild_id, case_id, outcome):
+        async with self.lock:
+            await self.db.execute("UPDATE moderation_cases SET outcome=? WHERE guild_id=? AND id=? AND source LIKE 'unicode-timeout:%'", (outcome[:1500],guild_id,case_id))
+            await self.db.commit()
+
     async def cases(self, guild_id, before=None, user_id=None):
         query, args = "SELECT c.*,v.created_at AS voided_at FROM moderation_cases c LEFT JOIN warning_voids v ON v.guild_id=c.guild_id AND v.warning_id=c.warning_id WHERE c.guild_id=?", [guild_id]
         if before is not None:

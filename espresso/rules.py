@@ -98,8 +98,8 @@ def _basic_decision(content: str, settings: Settings) -> ContentDecision | None:
 
 
 def content_decision(content: str, settings: Settings) -> ContentDecision | None:
-    matches = [match for match in (_basic_decision(content, settings), detect(normalize(content), settings.hate_filters)) if match]
-    return max(matches, key=lambda match: ({"delete":0,"warn":1,"timeout":2}[match.action], match.category is not None), default=None)
+    matches = [match for match in (_basic_decision(content, settings), detect(content, settings.hate_filters)) if match]
+    return max(matches, key=lambda match: ({"delete":0,"warn":1,"timeout":2}[match.action], match.category is not None,match.unicode_evasion), default=None)
 
 
 def content_violation(content: str, settings: Settings) -> str | None:

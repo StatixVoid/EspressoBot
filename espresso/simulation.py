@@ -47,18 +47,20 @@ def simulate(text, settings, context=None, *, channel_id=None, parent_id=None, t
         steps.append(f"Matched {decision.reason}; Espresso would attempt to delete the message.")
         if decision.action != "delete":
             if context.get("warning_cooldown",False):
-                steps.append("The automatic warning cooldown would suppress a new warning and its escalation.")
+                steps.append("The automatic warning cooldown would suppress a new warning." if decision.unicode_evasion else "The automatic warning cooldown would suppress a new warning and its escalation.")
             else:
                 result["warnings_after"] = warnings+1
                 result["effective_action"] = "warn"
                 steps.append(f"A new warning would bring the active count to {warnings+1}.")
-                threshold = effective.warn_threshold and warnings+1 >= effective.warn_threshold
-                if decision.action == "timeout" or threshold:
-                    if timeout_error:
-                        steps.append("Timeout would be skipped: "+timeout_error)
-                    else:
-                        result["effective_action"] = "timeout"
-                        result["timeout_would_apply"] = True
-                        steps.append(f"Espresso would attempt a {effective.timeout_minutes}-minute timeout; a longer existing timeout is preserved.")
+            threshold = effective.warn_threshold and warnings+1 >= effective.warn_threshold
+            if decision.unicode_evasion or (not context.get("warning_cooldown",False) and (decision.action == "timeout" or threshold)):
+                if decision.unicode_evasion:
+                    steps.append("Unicode disguises were detected inside a matched abuse span. The immediate timeout is independent of warning cooldown and threshold.")
+                if timeout_error:
+                    steps.append("Timeout would be skipped: "+timeout_error)
+                else:
+                    result["effective_action"] = "timeout"
+                    result["timeout_would_apply"] = True
+                    steps.append(f"Espresso would attempt a {effective.timeout_minutes}-minute timeout; a longer existing timeout is preserved.")
     result["note"] = " ".join(steps)+" This simulation performs no Discord actions. Supplied counts are hypothetical; live message deduplication, timing, and Discord failures can change the outcome."
     return result

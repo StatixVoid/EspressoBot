@@ -17,7 +17,7 @@
       "status": "available",
       "category": "Abuse filters",
       "title": "Clear boundaries, category by category",
-      "description": "Set racism, misogyny, and anti-trans hate filters separately. Choose coverage from 1–5, an action, extra blocked terms, and exact-match exceptions.",
+      "description": "Set racism, misogyny, and anti-trans hate coverage separately. Reveal uncensored examples, catch common combined evasions, and immediately timeout confirmed Unicode-disguised hate. Ordinary Unicode stays allowed.",
       "link": {
         "href": "#community-filters",
         "label": "Understand the five levels"
