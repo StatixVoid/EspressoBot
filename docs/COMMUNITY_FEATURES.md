@@ -2,15 +2,17 @@
 
 All features are included in the same Python process and SQLite database. Existing server settings are preserved on upgrade. Automatic database migrations add the inbox, cases, scheduled posts, and temporary raid recovery records. Back up the database while Espresso is stopped before upgrading, then restart the full app to register the new Discord commands.
 
+See [the refinement guide](REFINEMENTS.md) for expanded workflows, calendar scheduling, simulations, rollback, and role menus.
+
 ## Private reports and appeals
 
 Members use `/report member reason [message_url]`, or the message context menu's **Report to Espresso** action. A linked message must be in the same server and accessible to the reporter. The bot saves the submitted explanation, reporter/target IDs, and message link, without copying the reported message's body. Submissions are private responses. Closed DMs do not block intake. Each member may have five open submissions and submit at most once per minute per server.
 
 Warnings include a case number in the member's DM. `/mycases` shows a member only their own recent cases. `/appeal case_number reason` accepts only that member's case in the current server, with one open appeal per case.
 
-Open **Staff desk** in the dashboard to assign an item to yourself, resolve or reject it with a note, or reopen it. Review history records the staff member, action, note, and time. Version checks prevent stale pages from overwriting another review. Staff cannot review their own submission. Resolving an appeal records a decision; staff explicitly remove a mistaken warning or timeout separately.
+Open **Staff desk** in the dashboard to assign an item to yourself, resolve or reject it with an internal note, or reopen it. A separate member-facing response is available through `/myreports` and can optionally be sent by DM. Internal notes stay private. Review history records the staff member, action, note, and time. Version checks prevent stale pages from overwriting another review. Staff cannot review their own submission. Resolving an appeal records a decision; staff explicitly remove a mistaken warning or timeout separately.
 
-Dashboard access continues to require Manage Server. The inbox, cases, and warning removal additionally require Moderate Members, rechecked on every request. Moderators without Manage Server can use `/staffdesk inbox`, `/staffdesk review`, `/staffdesk cases`, and `/staffdesk removewarning`. Notes and report contents are not copied to channel or process logs.
+Dashboard access supports Manage Server or Moderate Members. Moderators receive Overview and Staff desk without configuration access. The inbox, cases, and warning removal require Moderate Members, rechecked on every request. Moderators without Manage Server can use `/staffdesk inbox`, `/staffdesk review`, `/staffdesk cases`, and `/staffdesk removewarning`. Notes and report contents are not copied to channel or process logs.
 
 ## Channel rules, trusted links, and observation mode
 
@@ -20,7 +22,7 @@ Channel rules override link, invite, and spam switches, or skip automatic modera
 
 **Observation mode** logs matched filters without deleting messages, warning members, or applying automatic timeouts. Raid responses become alerts. Member screening, welcomes, scheduled posts, and explicit manual staff commands retain their own behavior. A server should choose a staff log channel to receive raid alerts in Discord; action metadata also appears in Activity log.
 
-In **Community & tools → Try a filter**, paste text and optionally choose a channel. This uses saved settings, sends no message, and records no warning or case. The result reports the matched text rule and configured action, including whether moderation or observation is enabled. Spam history, role exemptions, warning cooldowns, escalation, and Discord permissions are not simulated. `/community testfilter` provides the same private text test.
+In **Community & tools → Try a filter**, paste text and optionally choose a channel. Choose saved settings or the current unsaved form and provide hypothetical warning counts, recent-message counts, and roles, or a member ID for current roles and timeout hierarchy. The result explains exemptions, cooldowns, observation, and escalation without saving settings, sending/deleting a message, or recording a case. Live timing and Discord failures remain outside the simulation. `/community testfilter` supports the same context inputs with saved settings.
 
 ## Moderation cases and warning expiry
 
@@ -48,13 +50,13 @@ The old values and expiry are saved before each Discord write. The background wo
 
 Enable **Welcome cards**, choose a text channel, and customize the message using `{member}` and `{server}`. Cards include the new member's avatar. Mentions render without sending notifications. Welcomes require member events and run only on joins received while online.
 
-In **Community & tools**, schedule an announcement or event reminder, choose its channel, and select a local date/time. The browser displays its timezone. Optional repeat days use fixed 24-hour intervals; after downtime, at most one overdue occurrence is sent and missed repeat occurrences are skipped. The worker checks due posts every 15 seconds while connected. Up to 100 pending posts per server are supported. Pending posts can be cancelled; a post already being delivered cannot be cancelled.
+In **Community & tools**, schedule an announcement or event reminder, choose its channel, and select a local date/time and named timezone. Choose once, a fixed interval, or daily/weekly local-clock repeats in a named timezone. The calendar and post editor support pause/resume and reviewed delivery recovery. After downtime, at most one overdue occurrence is sent and missed repeat occurrences are skipped. The worker checks due posts every 15 seconds while connected. Up to 100 pending posts per server are supported. Pending posts can be cancelled; a post already being delivered cannot be cancelled.
 
 `/community schedule channel when message [repeat_days] [notify]` accepts an ISO timestamp with an explicit timezone, such as `2026-12-01T18:00-07:00`. `/community posts` lists status and `/community cancelpost` cancels pending delivery. Both scheduling paths require Manage Server and access to post in the selected channel. Those permissions are rechecked before delivery, so a removed or demoted author cannot leave privileged scheduled posts running.
 
 Messages suppress all mentions by default. Configure an existing, ordinary, mentionable notification role in Settings, and use reaction roles to let members opt in. Only posts explicitly marked **Notify role** may ping that role; user and @everyone pings stay suppressed. No roles are created or granted automatically by the scheduler.
 
-Delivery is claimed persistently before sending. A restart during delivery, timeout, or ambiguous network failure is shown as **uncertain** and is not automatically replayed. Check the Discord channel before scheduling a replacement. This favors avoiding duplicate announcements over retrying an unconfirmed send. Repeats stop on failed or uncertain delivery and need staff review.
+Delivery is claimed persistently before sending. A restart during delivery, timeout, or ambiguous network failure is shown as **uncertain** and is not automatically replayed. Check the Discord channel before scheduling a replacement. This favors avoiding duplicate announcements over retrying an unconfirmed send. Repeats stop on failed or uncertain delivery and need staff review. The recovery editor requires a future time; uncertain deliveries also require explicit confirmation that staff checked Discord first.
 
 ## Coffee cards, polls, and daily prompts
 
@@ -64,7 +66,7 @@ Each feature starts off and is optional per server:
 - `/poll question options [hours]` creates a native Discord poll. Separate 2–10 unique answer options with `|`; duration is 1–168 hours. A member may start one poll every two minutes. Both the member and bot need channel posting and Send Polls permissions.
 - **Daily conversation starters** post a rotating café prompt in the chosen channel. Select the hour in UTC; 16 UTC is 9 AM in Arizona. The first connected worker tick after that hour queues one prompt for the current UTC day. It skips previous days and persists the date to avoid duplicate prompts after restart. Moving or disabling prompts before delivery cancels the queued prompt.
 
-Coffee cards and polls require both the member and Espresso to be able to post in the channel. These commands cannot turn a read-only channel into a public posting route.
+Coffee cards support configurable styles, titles, text, and a custom accent color. Daily prompts can use a server-written library or the built-in fallback. Persistent button/dropdown role menus are also available in Community & tools; see [the refinement guide](REFINEMENTS.md#button-and-dropdown-role-menus). Coffee cards and polls require both the member and Espresso to be able to post in the channel. These commands cannot turn a read-only channel into a public posting route.
 
 ## Data and operation
 

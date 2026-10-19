@@ -31,6 +31,7 @@ COOKIE = "espresso_session"
 STATE_COOKIE = "espresso_oauth"
 MANAGE_GUILD = 0x20
 ADMINISTRATOR = 0x8
+MODERATE_MEMBERS = 1 << 40
 
 
 @dataclass
@@ -108,8 +109,9 @@ class DiscordAPI:
         raise web.HTTPServiceUnavailable(reason="Too many servers to load. Please contact the bot operator.")
 
 
-def eligible(guild: dict) -> bool:
-    return bool(guild.get("owner") or int(guild.get("permissions", 0)) & (MANAGE_GUILD | ADMINISTRATOR))
+def eligible(guild: dict, dashboard=False) -> bool:
+    flags = MANAGE_GUILD | ADMINISTRATOR | (MODERATE_MEMBERS if dashboard else 0)
+    return bool(guild.get("owner") or int(guild.get("permissions", 0)) & flags)
 
 
 def settings_json(settings: Settings) -> dict:
@@ -120,6 +122,8 @@ def settings_json(settings: Settings) -> dict:
                               for mapping in settings.reaction_roles]
     data["screening"] = {**settings.screening,**{key:str(settings.screening[key]) if settings.screening[key] is not None else None for key in ("verified_role_id","entry_channel_id")}}
     data["channel_rules"] = [{**row,"channel_id":str(row["channel_id"])} for row in settings.channel_rules]
+    for key in ("excluded_channel_ids","excluded_category_ids"):
+        data["raid"][key] = [str(value) for value in settings.raid[key]]
     for name,keys in (("welcome",("channel_id",)),("community",("prompt_channel_id","notification_role_id"))):
         data[name] = {**data[name],**{key:str(data[name][key]) if data[name][key] is not None else None for key in keys}}
     return data
@@ -158,6 +162,10 @@ class Panel:
             web.post("/api/servers/{guild_id}/screening/{user_id}", self.review_screening),
         ])
         install_community_routes(self)
+        from .refinements_web import install_refinement_routes
+        install_refinement_routes(self)
+        from .hub_web import install_hub_routes
+        install_hub_routes(self)
         self.app.router.add_static("/assets/", PUBLIC, show_index=False)
         self.app.on_startup.append(self.start)
         self.app.on_cleanup.append(self.cleanup)
@@ -256,7 +264,8 @@ class Panel:
         permissions = discord.Permissions(view_channel=True, send_messages=True, read_message_history=True,
                                           manage_messages=True, embed_links=True, moderate_members=True,
                                           send_messages_in_threads=True, add_reactions=True, manage_roles=True,
-                                          manage_channels=True, send_polls=True)
+                                          manage_channels=True, send_polls=True, move_members=True,
+                                          connect=True, create_events=True, manage_events=True, attach_files=True)
         params = {"client_id": self.config.client_id, "scope": "bot applications.commands",
                   "permissions": str(permissions.value), "integration_type": "0"}
         guild_id = request.query.get("guild_id")
@@ -293,7 +302,8 @@ class Panel:
             permissions = discord.Permissions(view_channel=True, send_messages=True, read_message_history=True,
                                               manage_messages=True, embed_links=True, moderate_members=True,
                                               send_messages_in_threads=True, add_reactions=True, manage_roles=True,
-                                              manage_channels=True, send_polls=True)
+                                              manage_channels=True, send_polls=True, move_members=True,
+                                              connect=True, create_events=True, manage_events=True, attach_files=True)
             params.update(scope="identify guilds bot applications.commands", permissions=str(permissions.value), integration_type="0")
         if guild_id:
             params["guild_id"] = guild_id
@@ -367,8 +377,10 @@ class Panel:
         guilds = await self.api.guilds(session.access_token)
         ready = bool(self.bot and self.bot.is_ready())
         payload = {"bot_online": ready, "servers": [
-            {"id": g["id"], "name": g["name"], "installed": bool(self.bot.get_guild(int(g["id"]))) if ready else None}
-            for g in guilds if eligible(g)
+            {"id": g["id"], "name": g["name"], "installed": bool(self.bot.get_guild(int(g["id"]))) if ready else None,
+             "can_manage":eligible(g)}
+            | {"can_moderate":bool(g.get("owner") or int(g.get("permissions",0)) & (MODERATE_MEMBERS|ADMINISTRATOR))}
+            for g in guilds if eligible(g,True)
         ]}
         if request.query.get("include_settings") == "1":
             payload["initial_server"] = None
@@ -382,17 +394,28 @@ class Panel:
                     payload["initial_server"] = {"id":selected["id"],"error":"Espresso is not available in this server. Please retry shortly."}
                 else:
                     try:
-                        payload["initial_server"] = {"id":selected["id"],"data":await self.settings_payload(guild)}
+                        payload["initial_server"] = {"id":selected["id"],"data":await self.settings_payload(guild) if selected["can_manage"] else self.staff_payload()}
                     except web.HTTPException as exc:
                         payload["initial_server"] = {"id":selected["id"],"error":exc.reason}
         return web.json_response(payload)
 
-    async def authorize(self, request, session):
+    async def authorize(self, request, session, permission="manage_guild"):
         guild_id = snowflake(request.match_info["guild_id"])
         # Fresh Discord response for each read and write; no cached login permission.
         guilds = await self.api.guilds(session.access_token)
-        if not any(int(g["id"]) == guild_id and eligible(g) for g in guilds):
-            raise web.HTTPForbidden(reason="You need Manage Server permission for this server.")
+        entry = next((g for g in guilds if int(g["id"]) == guild_id),None)
+        if permission == "manage_guild":
+            allowed = entry is not None and eligible(entry)
+        elif permission == "dashboard":
+            allowed = entry is not None and eligible(entry,True)
+        elif permission == "moderate_members":
+            allowed = entry is not None and bool(entry.get("owner") or int(entry.get("permissions",0)) & (MODERATE_MEMBERS|ADMINISTRATOR|MANAGE_GUILD))
+        else:
+            raise ValueError("Unknown dashboard permission.")
+        if not allowed:
+            raise web.HTTPForbidden(reason="You need Manage Server or Moderate Members for this dashboard action.")
+        request["espresso_can_manage"] = eligible(entry)
+        request["espresso_can_moderate"] = bool(entry.get("owner") or int(entry.get("permissions",0)) & (MODERATE_MEMBERS|ADMINISTRATOR))
         if not self.bot or not self.bot.is_ready():
             raise web.HTTPServiceUnavailable(reason="Espresso is reconnecting. Please try again shortly.")
         guild = self.bot.get_guild(guild_id)
@@ -401,8 +424,16 @@ class Panel:
         return guild
 
     async def get_settings(self, request):
-        guild = await self.authorize(request, self.session(request))
-        return web.json_response(await self.settings_payload(guild))
+        guild = await self.authorize(request, self.session(request),permission="dashboard")
+        if not request["espresso_can_manage"]:
+            return web.json_response(self.staff_payload())
+        result = await self.settings_payload(guild)
+        result["access"]["moderate"] = request["espresso_can_moderate"]
+        return web.json_response(result)
+
+    @staticmethod
+    def staff_payload():
+        return {"access":{"manage":False,"moderate":True},"settings":None,"version":0,"roles":[],"channels":[],"categories":[]}
 
     async def settings_payload(self, guild):
         try:
@@ -412,9 +443,11 @@ class Panel:
             raise web.HTTPServiceUnavailable(reason="Could not read server roles and channels. Please try again.") from None
         settings, version = await self.store.snapshot(guild.id)
         return {
+            "access":{"manage":True},
             "settings": settings_json(settings), "version": version,
             "screening_events_enabled": bool(getattr(getattr(self.bot,"intents",None),"members",False)),
             "roles": [{"id": str(r.id), "name": r.name} for r in roles if r.id != guild.id],
+            "categories":[{"id":str(channel.id),"name":channel.name} for channel in channels if isinstance(channel,discord.CategoryChannel)],
             "channels": [{"id": str(c.id), "name": c.name,
                           "can_log": bool(guild.me and all(getattr(c.permissions_for(guild.me), p) for p in ("view_channel", "send_messages", "embed_links")))}
                          for c in channels if isinstance(c, discord.TextChannel)],

@@ -2,9 +2,9 @@
 window.espressoExtensions = (() => {
   const defaults = {
     observation_mode:false, allowed_domains:[], channel_rules:[], warning_expiry_days:0,
-    raid:{enabled:false,join_limit:10,window_seconds:20,repeat_limit:5,action:"alert",slowmode_seconds:15,duration_minutes:10},
+    raid:{enabled:false,join_limit:10,window_seconds:20,repeat_limit:5,action:"alert",slowmode_seconds:15,duration_minutes:10,excluded_channel_ids:[],excluded_category_ids:[]},
     welcome:{enabled:false,channel_id:null,message:"Welcome {member} to {server}! Grab a coffee and make yourself at home. ☕"},
-    community:{coffee_enabled:false,polls_enabled:false,prompts_enabled:false,prompt_channel_id:null,prompt_hour_utc:16,notification_role_id:null}
+    community:{coffee_enabled:false,polls_enabled:false,prompts_enabled:false,prompt_channel_id:null,prompt_hour_utc:16,notification_role_id:null,coffee_style:"classic",coffee_title:"A little pick-me-up ☕",coffee_message:"{sender} brought {member} {drink}.\nMade with a little kindness.",coffee_color:"D8A7B1",prompt_library:[]}
   };
   const control = name => document.querySelector(`#settings-form [name="${name}"]`);
   const selectOptions = (name,options,value,empty) => {
@@ -27,12 +27,16 @@ window.espressoExtensions = (() => {
     item.append(remove);document.querySelector("#channel-rules").append(item);
   }
   function fill(settings) {
+    for(const name of ["raid","welcome","community"])settings[name]={...defaults[name],...settings[name]};
     control("observation_mode").checked=settings.observation_mode;
     control("allowed_domains").value=settings.allowed_domains.join("\n");
     control("warning_expiry_days").value=settings.warning_expiry_days;
     for(const name of ["raid","welcome","community"])for(const [key,value] of Object.entries(settings[name])) {
       const input=control(`${name}_${key}`);
-      if(typeof value==="boolean")input.checked=value;else input.value=value??"";
+      if(Array.isArray(value)) {
+        if(key==="prompt_library")input.value=value.join("\n");
+        else {const options=key==="excluded_channel_ids"?availableChannels:availableCategories;input.replaceChildren();options.forEach(item=>{const option=new Option(item.name,item.id);option.selected=value.includes(item.id);input.add(option);});for(const id of value)if(!options.some(item=>item.id===id)){const option=new Option(`Unavailable (${id})`,id);option.selected=true;input.add(option);}}
+      } else if(typeof value==="boolean")input.checked=value;else input.value=value??"";
     }
     selectOptions("welcome_channel_id",availableChannels,settings.welcome.channel_id,"Choose welcome channel…");
     selectOptions("community_prompt_channel_id",availableChannels,settings.community.prompt_channel_id,"Choose prompt channel…");
@@ -44,7 +48,7 @@ window.espressoExtensions = (() => {
     for(const name of ["raid","welcome","community"]) {
       value[name]={};for(const [key,initial] of Object.entries(defaults[name])) {
         const input=control(`${name}_${key}`);
-        value[name][key]=typeof initial==="boolean"?input.checked:typeof initial==="number"?Number(input.value):input.value || null;
+        value[name][key]=Array.isArray(initial)?key==="prompt_library"?[...new Set(input.value.split(/\r?\n/).map(item=>item.trim()).filter(Boolean))]:Array.from(input.selectedOptions,option=>option.value):typeof initial==="boolean"?input.checked:typeof initial==="number"?Number(input.value):input.value || null;
       }
     }
     value.channel_rules=Array.from(document.querySelectorAll("[data-channel-rule]"),item=>Object.fromEntries(Array.from(item.querySelectorAll("select"),input=>[input.dataset.ruleField,input.dataset.ruleField==="channel_id"?input.value:input.value===""?null:input.value==="true"])));

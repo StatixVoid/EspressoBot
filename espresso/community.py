@@ -109,7 +109,7 @@ class CommunityManager:
                     continue
                 # Use the same persistent delivery queue; restart and missed-day behavior are explicit.
                 await self.store.schedule_post(guild.id,policy["prompt_channel_id"],self.bot.user.id,
-                    "☕ Today's conversation starter: " + PROMPTS[today.date().toordinal() % len(PROMPTS)],
+                    "☕ Today's conversation starter: " + (policy["prompt_library"] or PROMPTS)[today.date().toordinal() % len(policy["prompt_library"] or PROMPTS)],
                     now+11,0,False,"prompt:"+key,now=now)
                 await self.store.set_state(guild.id,"daily_prompt",key)
             except Exception as exc:
@@ -131,6 +131,9 @@ class CommunityManager:
         channels = {c.id:c for c in await guild.fetch_channels()}
         if any(rule["channel_id"] not in channels for rule in settings.channel_rules):
             raise ValueError("A channel rule refers to a channel outside this server.")
+        for key,kind in (("excluded_channel_ids",discord.TextChannel),("excluded_category_ids",discord.CategoryChannel)):
+            if any(item not in channels or not isinstance(channels[item],kind) for item in settings.raid[key]):
+                raise ValueError("Choose raid exclusions from this server's text channels and categories.")
         for policy, key, enabled in ((settings.welcome,"channel_id",settings.welcome["enabled"]),
                                      (settings.community,"prompt_channel_id",settings.community["prompts_enabled"])):
             if enabled:
@@ -226,6 +229,8 @@ class CommunityManager:
         channel = await guild.fetch_channel(channel_id)
         if not isinstance(channel,discord.TextChannel) or guild.me is None:
             raise ValueError("Channel is unavailable.")
+        if channel.id in policy["excluded_channel_ids"] or channel.category_id in policy["excluded_category_ids"]:
+            raise ValueError("This channel is excluded from raid restrictions.")
         if any(row["channel_id"] == channel_id for row in await self.store.recovery(guild.id)):
             raise ValueError("This channel already has protection awaiting restoration.")
         perms = channel.permissions_for(guild.me)
@@ -315,13 +320,29 @@ class CommunityManager:
                 await self.bot.log_action(guild,"Warning removed",f"Case #{case_id} · warning {warning_id} · moderator {actor.id} · member {row['user_id']}.")
         return changed
 
-    async def review(self, guild, actor, item_id, version, action, note):
+    async def review(self, guild, actor, item_id, version, action, note, public_response="", notify=False):
         staff(actor)
-        status = await self.store.review_inbox(guild.id,item_id,actor.id,version,action,note)
+        status = await self.store.review_inbox(guild.id,item_id,actor.id,version,action,note,public_response,notify)
+        if notify:
+            row = await self.store.inbox_item(guild.id,item_id)
+            try:
+                recipient = await self.bot.fetch_user(row["author_id"])
+                text = f"☕ Your {row['kind']} #{item_id} in {discord.utils.escape_mentions(guild.name)} is {status}."
+                if public_response:
+                    text += "\n"+discord.utils.escape_mentions(public_response)
+                await recipient.send(text,allowed_mentions=discord.AllowedMentions.none())
+                notice_status = "sent"
+            except discord.Forbidden:
+                notice_status = "closed_dm"
+            except discord.HTTPException:
+                notice_status = "failed"
+            except Exception:
+                notice_status = "uncertain"
+            await self.store.notice_result(guild.id,item_id,version+1,notice_status)
         await self.bot.log_action(guild,"Staff inbox updated",f"Item #{item_id} · moderator {actor.id} · {status}.")
         return status
 
-    async def schedule(self, guild, actor, channel_id, content, due_at, repeat_days, notify, source):
+    async def schedule(self, guild, actor, channel_id, content, due_at, repeat_days, notify, source, calendar=None):
         manager(actor)
         channel = await self.post_channel(guild,channel_id)
         if not channel.permissions_for(actor).view_channel or not channel.permissions_for(actor).send_messages:
@@ -329,7 +350,7 @@ class CommunityManager:
         settings = await self.store.settings(guild.id)
         if notify and settings.community["notification_role_id"] is None:
             raise ValueError("Choose a notification role in settings first.")
-        post_id = await self.store.schedule_post(guild.id,channel_id,actor.id,content,due_at,repeat_days,notify,source)
+        post_id = await self.store.schedule_post(guild.id,channel_id,actor.id,content,due_at,repeat_days,notify,source,calendar=calendar)
         await self.bot.log_action(guild,"Post scheduled",f"Post #{post_id} · channel {channel_id} · moderator {actor.id}.")
         return post_id
 
@@ -433,6 +454,20 @@ class CommunityManager:
                 "observation_mode":effective.observation_mode,
                 "note":"This tests text rules only. Spam requires message history; role exemptions, warning cooldowns, escalation, and Discord permissions also affect live behavior."}
 
+    async def extend_protection(self, guild, actor, channel_id, minutes):
+        manager(actor)
+        async with self.guild_lock(guild.id):
+            await self.store.extend_protection(guild.id,channel_id,minutes)
+        await self.bot.log_action(guild,"Raid protection extended",f"Channel {channel_id} · moderator {actor.id} · {minutes} minutes (maximum one hour from now).")
+
+    async def end_channel_protection(self, guild, actor, channel_id):
+        manager(actor)
+        async with self.guild_lock(guild.id):
+            row = next((row for row in await self.store.recovery(guild.id) if row["channel_id"] == channel_id),None)
+            if row is None:
+                raise ValueError("This channel no longer has temporary protection.")
+            return await self.restore_channel(guild,row)
+
     def command_limit(self, guild_id, user_id, kind, seconds):
         key,now = (guild_id,user_id,kind),time.monotonic()
         if now-self.command_cooldowns.get(key,-10000) < seconds:
@@ -448,7 +483,11 @@ class CommunityManager:
             raise ValueError("Coffee cards are off. Ask an admin to enable them in Community settings.")
         self.command_limit(interaction.guild_id,interaction.user.id,"coffee",30)
         drink = random.choice(("a caramel latte","a vanilla cold brew","a cappuccino","a cozy hot chocolate","an espresso"))
-        embed = discord.Embed(title="A little pick-me-up ☕",description=f"{interaction.user.mention} brought {member.mention} {drink}.\nMade with a little kindness.",color=COLOR)
+        policy = settings.community
+        colors = {"classic":COLOR,"pastel":0xC9B5EB,"midnight":0x41314D,"custom":int(policy["coffee_color"],16)}
+        text = policy["coffee_message"].replace("{sender}",interaction.user.mention).replace("{member}",member.mention).replace("{drink}",drink)
+        embed = discord.Embed(title=policy["coffee_title"],description=text,color=colors[policy["coffee_style"]])
+        embed.set_footer(text=f"Freshly brewed · {policy['coffee_style']} blend")
         embed.set_thumbnail(url=member.display_avatar.url)
         await interaction.response.send_message(embed=embed,allowed_mentions=discord.AllowedMentions.none())
 

@@ -6,7 +6,10 @@
       "category": "The first line",
       "title": "Less noise. More conversation.",
       "description": "Catch message spam, unwanted Discord invites, links, and the words you choose to block. Edited messages get checked, too.",
-      "link": {"href": "/preview", "label": "Explore the filters"}
+      "link": {
+        "href": "/preview",
+        "label": "Explore the filters"
+      }
     },
     {
       "id": "identity-filters",
@@ -14,7 +17,10 @@
       "category": "Clear boundaries",
       "title": "Care, with a little more control.",
       "description": "Adjust racism, misogyny, and anti-trans hate filters separately, with five coverage levels, your own terms, exceptions, and a choice of action.",
-      "link": {"href": "#community-filters", "label": "See the coverage levels"}
+      "link": {
+        "href": "#community-filters",
+        "label": "See the coverage levels"
+      }
     },
     {
       "id": "warnings-and-timeouts",
@@ -22,15 +28,21 @@
       "category": "Fair boundaries",
       "title": "A warning before a breather.",
       "description": "Keep a warning history and choose when repeated warnings lead to a timeout. Staff stay in control with manual moderation commands.",
-      "link": {"href": "#moderation-examples", "label": "See Espresso in action"}
+      "link": {
+        "href": "#moderation-examples",
+        "label": "See Espresso in action"
+      }
     },
     {
       "id": "community-roles",
       "status": "available",
       "category": "Find your people",
-      "title": "A small reaction. A new connection.",
-      "description": "Let members opt into regular community roles by reacting to an existing message. Choose whether removing the reaction removes the role.",
-      "link": {"href": "#reaction-roles", "label": "Meet reaction roles"}
+      "title": "A small choice. A new connection.",
+      "description": "Offer reaction roles or persistent button and dropdown menus, with descriptions, choose-one groups, and selection limits.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore the dashboard"
+      }
     },
     {
       "id": "server-controls",
@@ -38,7 +50,10 @@
       "category": "Your own recipe",
       "title": "Every server gets its own blend.",
       "description": "Use guided setup, adjust your server's rules in the web panel, choose exempt roles, and send moderation outcomes to a private staff log.",
-      "link": {"href": "/preview", "label": "Take a look at the panel"}
+      "link": {
+        "href": "/preview",
+        "label": "Take a look at the panel"
+      }
     },
     {
       "id": "member-screening",
@@ -46,31 +61,43 @@
       "category": "Member screening",
       "title": "A thoughtful first hello.",
       "description": "Choose account-age checks or manual review, collect rules agreement, and grant a Verified access role when your policy is met. Staff manage requests in Member review.",
-      "link": {"href": "#member-screening-guide", "label": "Meet member screening"}
+      "link": {
+        "href": "#member-screening-guide",
+        "label": "Meet member screening"
+      }
     },
     {
       "id": "private-staff-desk",
       "status": "available",
       "category": "Room to be heard",
       "title": "A quieter way to ask for help.",
-      "description": "Send private reports and case appeals. Staff can assign reviewers, record decisions, find moderation cases, and remove an individual mistaken warning with an audit record.",
-      "link": {"href": "/preview", "label": "Explore the staff desk"}
+      "description": "Send private reports and appeals, track your own requests, and receive optional private outcomes. Moderators get a dedicated desk with internal notes and separate member-facing responses.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore the dashboard"
+      }
     },
     {
       "id": "flexible-filter-controls",
       "status": "available",
       "category": "A more personal recipe",
       "title": "Different channels. Different needs.",
-      "description": "Choose trusted websites, customize channel rules, and test messages against saved filters. Observation mode lets staff watch matches before enforcing rules.",
-      "link": {"href": "/preview", "label": "Try the controls"}
+      "description": "Choose trusted websites and channel rules, then simulate saved or unsaved settings with member roles, warning history, cooldowns, and clear outcome explanations.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore the dashboard"
+      }
     },
     {
       "id": "raid-protection",
       "status": "available",
       "category": "Keep the café calm",
       "title": "A little breathing room.",
-      "description": "Watch for join spikes and coordinated repeated messages. Alert staff or apply temporary slowmode or lockdown, with saved settings restored when protection ends.",
-      "link": {"href": "/preview", "label": "See raid settings"}
+      "description": "Watch for join spikes and coordinated repeated messages. Exclude channels or categories, track active protection, extend or end timers, and restore prior settings.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore the dashboard"
+      }
     },
     {
       "id": "server-health-checks",
@@ -78,23 +105,131 @@
       "category": "Ready for your next shift",
       "title": "Know what needs a little care.",
       "description": "Check moderation permissions, role placement, log channels, member events, and verification access setup, with clear steps for fixing issues.",
-      "link": {"href": "/preview", "label": "Explore server checks"}
+      "link": {
+        "href": "/preview",
+        "label": "Explore server checks"
+      }
     },
     {
       "id": "community-announcements",
       "status": "available",
       "category": "Make yourself at home",
       "title": "A warm hello. Something to look forward to.",
-      "description": "Customize welcome cards, schedule announcements and event reminders, repeat posts, and optionally notify a community role that members choose to join.",
-      "link": {"href": "/preview", "label": "Plan a post"}
+      "description": "Customize welcome cards and schedule local-time announcements in a named timezone. Use a calendar, daily or weekly repeats, editing, pause/resume, and reviewed delivery recovery.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore the dashboard"
+      }
     },
     {
       "id": "cafe-personality",
       "status": "available",
       "category": "A little Espresso personality",
       "title": "Good company, freshly brewed.",
-      "description": "Enable friendly coffee cards, native Discord polls, and daily conversation starters. Each server chooses which café features belong in its community.",
-      "link": {"href": "/preview", "label": "Meet the community tools"}
+      "description": "Design coffee cards, create Discord polls, and post from your own conversation prompt library. Each server chooses its café features.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore the dashboard"
+      }
+    },
+    {
+      "id": "overview-and-history",
+      "status": "available",
+      "category": "A clearer next shift",
+      "title": "See what needs attention. Know what changed.",
+      "description": "Review waiting reports, verification requests, delivery issues, and server health. Managers can inspect settings history and preview a previous recipe before restoring it.",
+      "link": {
+        "href": "/preview",
+        "label": "Meet the overview"
+      }
+    },
+    {
+      "id": "support-tickets",
+      "status": "available",
+      "category": "Community hub",
+      "title": "A private place to work things out.",
+      "description": "Open private support rooms, let the team claim and close tickets, and request an optional text transcript retained for 30 days.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore Community hub"
+      }
+    },
+    {
+      "id": "community-events",
+      "status": "available",
+      "category": "Community hub",
+      "title": "Give everyone something to look forward to.",
+      "description": "Create Discord events with opt-in DM reminders and dedicated event roles that expire when the gathering ends.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore Community hub"
+      }
+    },
+    {
+      "id": "suggestion-board",
+      "status": "available",
+      "category": "Community hub",
+      "title": "Good ideas deserve a place to grow.",
+      "description": "Submit ideas, vote with persistent buttons, and follow public staff updates from review through completion.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore Community hub"
+      }
+    },
+    {
+      "id": "personal-voice-rooms",
+      "status": "available",
+      "category": "Community hub",
+      "title": "A table for your own little group.",
+      "description": "Join a lobby to create a personal voice room. Set its name, size, and connection controls; empty rooms clean themselves up.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore Community hub"
+      }
+    },
+    {
+      "id": "saved-replies",
+      "status": "available",
+      "category": "Community hub",
+      "title": "Helpful answers, ready when you need them.",
+      "description": "Staff write searchable FAQ replies that members find with /faq and /tag. Keep common questions easy to answer.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore Community hub"
+      }
+    },
+    {
+      "id": "birthday-celebrations",
+      "status": "available",
+      "category": "Community hub",
+      "title": "A little birthday sweetness.",
+      "description": "Members opt into greetings and an optional birthday role. Only month and day are stored, with celebrations following the server timezone.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore Community hub"
+      }
+    },
+    {
+      "id": "community-highlights",
+      "status": "available",
+      "category": "Community hub",
+      "title": "Keep the lovely moments close.",
+      "description": "Collect starred messages from approved public channels. Members can opt out and staff can remove highlights.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore Community hub"
+      }
+    },
+    {
+      "id": "cafe-profiles",
+      "status": "available",
+      "category": "Community hub",
+      "title": "Your own familiar face at the café.",
+      "description": "Create optional profile cards, thank helpful members, and collect staff-awarded community badges without message-count leveling.",
+      "link": {
+        "href": "/preview",
+        "label": "Explore Community hub"
+      }
     }
   ]
 }

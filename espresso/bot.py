@@ -22,6 +22,9 @@ from .screening import ScreeningManager, ScreeningEntryView
 from .community import CommunityManager
 from .community_config import channel_settings
 from .community_commands import register_community_commands
+from .role_menus import RoleMenuManager
+from .hub import HubManager
+from .hub_commands import register_hub_commands
 
 LOG = logging.getLogger("espresso")
 COLOR = 0xD8A7B1  # Soft pink, with a little coffee-shop charm.
@@ -73,6 +76,8 @@ class Espresso(discord.Client):
         intents.guild_reactions = True
         intents.message_content = True
         intents.members = member_screening_events
+        intents.voice_states = True
+        intents.guild_scheduled_events = True
         super().__init__(intents=intents, allowed_mentions=discord.AllowedMentions.none(),
                          max_messages=1000, member_cache_flags=discord.MemberCacheFlags.none(),
                          activity=discord.Game(name="Espresso | keeping chats sweet ☕"))
@@ -84,19 +89,25 @@ class Espresso(discord.Client):
         self.reaction_manager = ReactionRoleManager(self)
         self.screening_manager = ScreeningManager(self)
         self.community_manager = CommunityManager(self)
+        self.role_menu_manager = RoleMenuManager(self)
+        self.hub_manager = HubManager(self)
         # Fixed-size locks serialize one member's actions without unbounded lock storage.
         self.member_locks = [asyncio.Lock() for _ in range(128)]
         self.tree = app_commands.CommandTree(self)
         self.tree.on_error = self.command_error
         self.register_commands()
         register_community_commands(self)
+        register_hub_commands(self)
 
     def member_lock(self, guild_id: int, user_id: int) -> asyncio.Lock:
         return self.member_locks[hash((guild_id, user_id)) % len(self.member_locks)]
 
     async def setup_hook(self) -> None:
         await self.store.open()
+        await self.role_menu_manager.restore_views()
+        await self.hub_manager.restore_views()
         self.community_manager.start()
+        self.hub_manager.start()
         self.add_view(ScreeningEntryView(self.screening_manager))
         if self.dev_guild_id:
             guild = discord.Object(id=self.dev_guild_id)
@@ -107,6 +118,7 @@ class Espresso(discord.Client):
         LOG.info("Slash commands registered (%s).", "development server" if self.dev_guild_id else "global")
 
     async def close(self) -> None:
+        await self.hub_manager.close()
         await self.community_manager.close()
         try:
             await super().close()
@@ -229,7 +241,8 @@ class Espresso(discord.Client):
                  "Use `/espresso screening` for member screening, `/screening queue` and `/screening review` for access requests, "
                  "and `/espresso settings` to review your recipe. Members use `/verify`. Configuration requires Manage Server; access reviews also require Manage Roles. "
                  "The panel also includes Staff desk for reports and appeals, channel rules, raid protection, and Community & tools for checks, filter testing, and scheduled posts. "
-                 "Members can use `/report`, `/appeal`, `/mycases`, and optional `/coffee` and `/poll`. Staff use `/staffdesk`; managers use `/community`.")
+                 "Members can use `/report`, `/appeal`, `/mycases`, `/myreports`, and optional `/coffee` and `/poll`. Staff use `/staffdesk`; managers use `/community`. "
+                 "Community hub adds optional support tickets (`/ticket`), events (`/events`), ideas (`/suggest`), personal voice rooms (`/room`), saved replies (`/faq`, `/tag`), birthdays (`/birthday`), highlights (`/highlights`), and café profiles (`/profile`, `/thanks`). Enable and configure them in the Community hub tab.")
         return text
 
     async def setup_hint(self, message: discord.Message) -> bool:
@@ -273,6 +286,7 @@ class Espresso(discord.Client):
             LOG.warning("Edit could not be read: guild=%s status=%s", guild.id, exc.status)
             return
         await self.moderate_message(message, edited=True)
+        await self.hub_manager.message_edited(message)
 
     async def moderate_message(self, message: discord.Message, *, edited: bool) -> None:
         guild = message.guild
@@ -327,6 +341,7 @@ class Espresso(discord.Client):
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         await self.reaction_manager.handle(payload, added=True)
+        await self.hub_manager.highlight_reaction(payload)
 
     async def on_member_join(self, member: discord.Member) -> None:
         await self.screening_manager.joined(member)
@@ -337,6 +352,22 @@ class Espresso(discord.Client):
 
     async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent) -> None:
         await self.reaction_manager.handle(payload, added=False)
+        await self.hub_manager.highlight_reaction(payload)
+
+    async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent) -> None:
+        if payload.guild_id is not None:
+            await self.hub_manager.message_deleted(payload.guild_id,payload.message_id)
+
+    async def on_raw_bulk_message_delete(self, payload: discord.RawBulkMessageDeleteEvent) -> None:
+        if payload.guild_id is not None:
+            for message_id in payload.message_ids:
+                await self.hub_manager.message_deleted(payload.guild_id,message_id)
+
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState) -> None:
+        try:
+            await self.hub_manager.voice_changed(member,before,after)
+        except (ValueError,discord.HTTPException):
+            LOG.warning("Temporary voice room could not be confirmed: guild=%s member=%s. Check Community hub.",member.guild.id,member.id)
 
     async def on_guild_remove(self, guild: discord.Guild) -> None:
         await self.store.delete_guild(guild.id)
@@ -378,7 +409,7 @@ class Espresso(discord.Client):
 
         @config.command(name="enable", description="Turn automatic moderation on or off")
         async def enable(interaction: discord.Interaction, enabled: bool):
-            await self.store.update(interaction.guild_id, enabled=enabled)
+            await self.store.update(interaction.guild_id, actor_id=interaction.user.id, enabled=enabled)
             self.spam.reset_guild(interaction.guild_id)
             await interaction.response.send_message(f"☕ Automatic moderation {'enabled' if enabled else 'disabled'}.", ephemeral=True)
             await self.log_action(interaction.guild, "Settings changed", f"Moderator {interaction.user.id} set enabled={enabled}.")
@@ -388,7 +419,7 @@ class Espresso(discord.Client):
                           block_invites: bool | None = None, spam_enabled: bool | None = None):
             changes = {k: v for k, v in dict(block_links=block_links, block_invites=block_invites,
                                              spam_enabled=spam_enabled).items() if v is not None}
-            await self.store.update(interaction.guild_id, **changes)
+            await self.store.update(interaction.guild_id, actor_id=interaction.user.id, **changes)
             self.spam.reset_guild(interaction.guild_id)
             await interaction.response.send_message("Filter settings saved. Use /espresso settings to review.", ephemeral=True)
             await self.log_action(interaction.guild, "Filters changed", f"Moderator {interaction.user.id} updated filter toggles.")
@@ -396,7 +427,7 @@ class Espresso(discord.Client):
         @config.command(name="spam", description="Set the message count and rolling time window")
         async def spam(interaction: discord.Interaction, limit: app_commands.Range[int, 2, 50],
                        window_seconds: app_commands.Range[int, 2, 60]):
-            await self.store.update(interaction.guild_id, spam_limit=limit, spam_window=window_seconds)
+            await self.store.update(interaction.guild_id, actor_id=interaction.user.id, spam_limit=limit, spam_window=window_seconds)
             self.spam.reset_guild(interaction.guild_id)
             await interaction.response.send_message(f"Spam triggers at {limit} messages in {window_seconds}s across server channels.", ephemeral=True)
             await self.log_action(interaction.guild, "Spam settings changed", f"Moderator {interaction.user.id} set limit={limit}, window={window_seconds}s.")
@@ -404,7 +435,7 @@ class Espresso(discord.Client):
         @config.command(name="hate", description="Configure an identity-based abuse category; levels add rule coverage")
         async def hate(interaction: discord.Interaction, category: Literal["racism", "misogyny", "trans_hate"],
                        enabled: bool, level: app_commands.Range[int, 1, 5], action: Literal["delete", "warn", "timeout"] = "warn"):
-            await self.store.edit_hate_filter(interaction.guild_id, category, enabled=enabled, level=level, action=action)
+            await self.store.edit_hate_filter(interaction.guild_id, category, actor_id=interaction.user.id, enabled=enabled, level=level, action=action)
             await interaction.response.send_message(f"{category}: {'on' if enabled else 'off'}, level {level}, action {action}. Advanced term lists are in the web panel.", ephemeral=True)
             await self.log_action(interaction.guild, "Abuse filter changed", f"Moderator {interaction.user.id} · {category} · enabled={enabled}, level={level}, action={action}.")
 
@@ -412,7 +443,7 @@ class Espresso(discord.Client):
         async def escalation(interaction: discord.Interaction, threshold: app_commands.Range[int, 0, 20],
                              window_hours: app_commands.Range[int, 1, 720],
                              timeout_minutes: app_commands.Range[int, 1, 40320]):
-            await self.store.update(interaction.guild_id, warn_threshold=threshold,
+            await self.store.update(interaction.guild_id, actor_id=interaction.user.id, warn_threshold=threshold,
                                     warn_window_hours=window_hours, timeout_minutes=timeout_minutes)
             await interaction.response.send_message("Warning escalation saved. Applies when the next warning is issued.", ephemeral=True)
             await self.log_action(interaction.guild, "Escalation changed", f"Moderator {interaction.user.id}: threshold={threshold}, window={window_hours}h, timeout={timeout_minutes}m.")
@@ -423,7 +454,7 @@ class Espresso(discord.Client):
             phrase = normalize(phrase).strip()
             if not phrase:
                 raise UserError("Enter a visible word or phrase.")
-            await self.store.edit_list(interaction.guild_id, "bad_words", phrase, action == "add")
+            await self.store.edit_list(interaction.guild_id, "bad_words", phrase, action == "add", actor_id=interaction.user.id)
             await interaction.response.send_message("Blocked phrase list saved.", ephemeral=True)
             await self.log_action(interaction.guild, "Blocked phrases changed", f"Moderator {interaction.user.id} used {action}.")
 
@@ -431,7 +462,7 @@ class Espresso(discord.Client):
         async def exempt(interaction: discord.Interaction, action: Literal["add", "remove"], role: discord.Role):
             if role.is_default():
                 raise UserError("The everyone role cannot be exempted. Use /espresso enable to pause moderation.")
-            await self.store.edit_list(interaction.guild_id, "exempt_roles", role.id, action == "add")
+            await self.store.edit_list(interaction.guild_id, "exempt_roles", role.id, action == "add", actor_id=interaction.user.id)
             await interaction.response.send_message("Role exemptions saved. Staff commands still apply.", ephemeral=True)
             await self.log_action(interaction.guild, "Exemptions changed", f"Moderator {interaction.user.id}: {action} role {role.id}.")
 
@@ -440,7 +471,7 @@ class Espresso(discord.Client):
                        disabled: bool = False):
             if disabled:
                 await self.log_action(interaction.guild, "Channel logging disabled", f"Moderator {interaction.user.id} disabled channel logs.")
-                await self.store.update(interaction.guild_id, log_channel=None)
+                await self.store.update(interaction.guild_id, actor_id=interaction.user.id, log_channel=None)
                 await interaction.response.send_message("Channel logging disabled. Process metadata logs remain active.", ephemeral=True)
                 return
             if channel is None:
@@ -451,7 +482,7 @@ class Espresso(discord.Client):
             if not (permissions.view_channel and permissions.send_messages and permissions.embed_links):
                 raise UserError("Espresso needs View Channel, Send Messages, and Embed Links in that channel.")
             await interaction.response.defer(ephemeral=True)
-            await self.store.update(interaction.guild_id, log_channel=channel.id)
+            await self.store.update(interaction.guild_id, actor_id=interaction.user.id, log_channel=channel.id)
             delivered = await self.log_action(interaction.guild, "Log channel connected", f"Moderator {interaction.user.id} connected this channel.")
             await interaction.followup.send("Log channel saved and test log sent." if delivered else "Channel saved, but the test log failed. Check channel permissions.", ephemeral=True)
 

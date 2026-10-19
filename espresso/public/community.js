@@ -49,11 +49,17 @@
     article.append(make("p",item.assigned_id?`Assigned to ${item.assigned_id}`:"Unassigned"));
     if(item.message_url && /^https:\/\/discord\.com\/channels\/\d+\/\d+\/\d+$/.test(item.message_url)) {const link=make("a","Open reported message ↗","text-link");link.href=item.message_url;link.target="_blank";link.rel="noopener noreferrer";article.append(link);}
     if(item.resolution)article.append(make("p",`Resolution: ${item.resolution}`));
-    const label=make("label","Review or resolution note"),note=make("textarea");note.className="inbox-note";note.maxLength=1000;note.rows=3;label.append(note);article.append(label);
+    if(Date.now()/1000-item.created_at>48*3600 && ["open","in_review"].includes(item.status))article.append(make("p","Waiting more than 48 hours","error-text"));
+    if(item.public_response)article.append(make("p",`Member-facing response: ${item.public_response}`));
+    if(item.notice_status && item.notice_status!=="not_requested")article.append(make("p",`Private outcome notice: ${item.notice_status.replaceAll("_"," ")}. Members can also use /myreports.`));
+    const label=make("label","Internal staff note (staff only)"),note=make("textarea");note.className="inbox-note";note.maxLength=1000;note.rows=3;label.append(note);article.append(label);
+    const responseLabel=make("label","Member-facing outcome (optional)"),response=make("textarea");response.maxLength=1000;response.rows=2;responseLabel.append(response);
+    const notifyLabel=make("label",""),notify=make("input");notify.type="checkbox";notifyLabel.append(notify,document.createTextNode(" Send this outcome privately to the submitter when closing the item"));article.append(responseLabel,notifyLabel);
     const actions=make("div",undefined,"review-actions"),closed=["resolved","rejected"].includes(item.status);
     for(const [kind,text] of closed?[["reopen","Reopen"]]:[["claim","Assign to me"],["resolve","Resolve"],["reject","Reject"]])actions.append(button(text,itemButton=>action(`inbox:${item.id}`,"#desk-message",async token=>{
       if(["resolve","reject"].includes(kind) && !note.value.trim())throw new Error("Add a resolution note first.");
-      const result=await write(`inbox/${encodeURIComponent(item.id)}`,{action:kind,version:item.version,note:note.value.trim()});
+      const closing=["resolve","reject"].includes(kind);
+      const result=await write(`inbox/${encodeURIComponent(item.id)}`,{action:kind,version:item.version,note:note.value.trim(),public_response:closing?response.value.trim():"",notify:closing && notify.checked});
       if(token!==generation)return;await loadInbox();status("#desk-message",`Item #${item.id} is ${result.status.replaceAll("_"," ")}.`);
     },itemButton)));
     const history=make("div",undefined,"inbox-history");
@@ -90,6 +96,7 @@
     if(token!==generation)return;node("#health-list").replaceChildren();
     result.checks.forEach(item=>{const article=card(`${item.ok?"✓":"!"} ${item.name}`,item.detail);article.classList.add("health-check");if(!item.ok)article.classList.add("needs-attention");node("#health-list").append(article);});
     node("#protection-list").replaceChildren();result.protection.forEach(item=>node("#protection-list").append(card(`Temporary ${item.action} · channel ${item.channel_id}`,`Restores ${date(item.restore_at)}.${item.error?` ${item.error}`:""}`)));
+    window.espressoRefinements?.renderProtection(result.protection,node("#protection-list"),loadHealth);
     node("#end-protection").hidden=!result.protection.length;node("#end-protection").disabled=preview;
   }
   async function loadPosts() {
@@ -98,6 +105,7 @@
       const article=card(`Post #${item.id} · ${item.status}`,item.content);
       article.prepend(make("p",`${date(item.due_at)} · channel ${item.channel_id}${item.repeat_days?` · every ${item.repeat_days} day(s)`:""}${item.notify?" · notify role":""}`,"member-number"));if(item.outcome)article.append(make("p",item.outcome));
       if(item.status==="pending")article.append(button("Cancel post",itemButton=>action(`post:${item.id}`,"#tools-message",async token=>{await write(`posts/${encodeURIComponent(item.id)}/cancel`,{});if(token!==generation)return;await loadPosts();status("#tools-message",`Post #${item.id} cancelled.`);},itemButton)));
+      window.espressoRefinements?.enhancePost(article,item,loadPosts);
       node("#post-list").append(article);
     });if(!result.posts.length)node("#post-list").append(make("p",preview?"Your server's scheduled announcements and reminders will appear here.":"No scheduled posts yet.","field-note"));
   }
@@ -106,14 +114,14 @@
   }
   node("#filter-test").addEventListener("submit",event=>{event.preventDefault();action("filter","#filter-result",async token=>{
     if(preview){status("#filter-result","Connect your server to test its saved filters. The live test reports the matched rule and action without taking any moderation action.");return;}
-    const form=event.currentTarget,result=await write("test-filter",{text:form.elements.text.value,channel_id:form.elements.channel_id.value || null});if(token!==generation)return;
+    const form=event.currentTarget,result=await write("test-filter",window.espressoRefinements.simulationBody(form));if(token!==generation)return;
     status("#filter-result",(result.matched?`Matched: ${result.rule}. Configured action: ${result.action}.`:"No text rule matched.")+`\nModeration ${result.moderation_enabled?"on":"off"}; observation ${result.observation_mode?"on":"off"}.\n${result.note}`);
   },event.currentTarget.querySelector("button"));});
   node("#schedule-post").addEventListener("input",()=>{postRequestId=crypto.randomUUID();});
   node("#schedule-post").addEventListener("submit",event=>{event.preventDefault();if(preview)return;const form=event.currentTarget;action("schedule","#schedule-result",async token=>{
     const due=new Date(form.elements.when.value).getTime()/1000;if(!Number.isFinite(due))throw new Error("Choose a date and time.");
-    const result=await write("posts",{channel_id:form.elements.channel_id.value,content:form.elements.content.value,due_at:due,repeat_days:Number(form.elements.repeat_days.value),notify:form.elements.notify.checked,request_id:postRequestId});
-    if(token!==generation)return;postRequestId=crypto.randomUUID();form.elements.content.value="";status("#schedule-result",`Post #${result.id} scheduled for ${date(due)}.`);await loadPosts();
+    const result=await write("posts",{channel_id:form.elements.channel_id.value,content:form.elements.content.value,due_at:due,repeat_days:Number(form.elements.repeat_days.value),notify:form.elements.notify.checked,request_id:postRequestId,...window.espressoRefinements.scheduleBody(form)});
+    if(token!==generation)return;postRequestId=crypto.randomUUID();form.elements.content.value="";const scheduled=result.due_at??due;const display=result.timezone?new Intl.DateTimeFormat(undefined,{timeZone:result.timezone,dateStyle:"medium",timeStyle:"short"}).format(new Date(scheduled*1000))+` (${result.timezone})`:date(scheduled);status("#schedule-result",`Post #${result.id} scheduled for ${display}.`);await loadPosts();
   },form.querySelector("button"));});
   node("#case-search").addEventListener("submit",event=>{event.preventDefault();caseUser=event.currentTarget.elements.user_id.value.trim();caseCursor=null;action("cases","#desk-message",()=>loadCases());});
   node("#inbox-status").addEventListener("change",()=>{inboxCursor=null;action("inbox","#desk-message",()=>loadInbox());});

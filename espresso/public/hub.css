@@ -1,0 +1,23 @@
+#hub-panel { min-width:0;padding:1.3rem 0; }
+.hub-config-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;align-items:start; }
+.hub-config-card { padding:1.3rem;border:1px solid var(--line,#eadde7);border-radius:18px;background:rgba(255,255,255,.55);min-width:0; }
+.hub-config-card h3 { margin:0 0 .5rem;font-size:1.1rem; }
+.hub-config-card .stack-label { margin-top:1rem; }
+.hub-checkbox { display:flex;align-items:center;gap:.7rem;margin:1rem 0;font-size:.84rem;line-height:1.6;cursor:pointer; }
+.hub-checkbox input { width:18px;height:18px;flex:none;accent-color:#a17298; }
+#hub-panel select[multiple] { min-height:8rem; }
+.hub-save-row { position:sticky;bottom:0;z-index:2;background:#fff8fc;border:1px solid #eadde7;border-radius:12px;padding:.9rem;display:flex;flex-wrap:wrap;gap:.7rem;margin:1rem 0 2rem;box-shadow:0 -4px 25px #6241530b; }
+#hub-panel .settings-section { margin-top:1.3rem; }
+.hub-item-detail { white-space:pre-wrap;overflow-wrap:anywhere; }
+.hub-item-actions { display:flex;flex-wrap:wrap;gap:.7rem;align-items:end;margin-top:1rem; }
+.hub-item-actions .stack-label { flex:1 1 100%;min-width:0; }
+#hub-faq-list { display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0; }
+#hub-panel textarea { resize:vertical;min-height:5rem; }
+#hub-panel input,#hub-panel select,#hub-panel textarea { max-width:100%;box-sizing:border-box; }
+#hub-panel input:not([type=checkbox]),#hub-panel select,#hub-panel textarea { width:100%;min-width:0;min-height:44px;border:1px solid #dac9d6;border-radius:10px;background:#fffafd;padding:.65rem .75rem;font:inherit;font-size:.82rem;color:#413044; }
+#hub-panel input:focus-visible,#hub-panel select:focus-visible,#hub-panel textarea:focus-visible { outline:2px solid #ac81ad;outline-offset:2px; }
+#hub-panel [type=submit] { margin-top:1rem; }
+#hub-panel .hub-save-row [type=submit] { margin-top:0; }
+#hub-message { position:sticky;top:calc(var(--espresso-header-height,80px) + var(--hub-tabs-height,72px) + 8px);background:#fff8fc;z-index:3;border-radius:10px;padding:.7rem;overflow-wrap:anywhere; }
+#hub-message:empty { display:none; }
+@media(max-width:800px) { .hub-config-grid { grid-template-columns:minmax(0,1fr); } .hub-item-actions .button { flex:1 1 auto; } }

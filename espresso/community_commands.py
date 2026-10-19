@@ -90,6 +90,15 @@ def register_community_commands(bot):
         lines = [f"**Case #{row['id']}** · {row['kind'].replace('_',' ')}" + (" · warning removed" if row["voided_at"] else "") + f"\n{safe(row['reason'],150)}" for row in rows[:10]]
         await interaction.response.send_message("\n\n".join(lines) or "You have no recorded cases in this server.",ephemeral=True)
 
+    @bot.tree.command(name="myreports",description="Privately check your reports, appeals, and member-facing outcomes")
+    @app_commands.guild_only()
+    async def myreports(interaction: discord.Interaction, before: app_commands.Range[int,1] | None = None):
+        rows = await features.store.member_reports(interaction.guild_id,interaction.user.id,before)
+        text = "\n\n".join(f"**#{row['id']}** · {row['kind']} · {row['status'].replace('_',' ')}\n{safe(row['public_response'],250) if row['public_response'] else 'No member-facing outcome posted yet.'}" for row in rows[:10])
+        if len(rows) > 10:
+            text += f"\n\nOlder items: /myreports before:{rows[9]['id']}"
+        await interaction.response.send_message(text or "You have no reports or appeals in this server.",ephemeral=True)
+
     @bot.tree.command(name="coffee",description="Send someone a little Espresso coffee card")
     @app_commands.guild_only()
     async def coffee(interaction: discord.Interaction, member: discord.Member):
@@ -111,9 +120,10 @@ def register_community_commands(bot):
 
     @desk.command(name="review",description="Claim, resolve, reject, or reopen a report or appeal")
     async def review(interaction: discord.Interaction, item: app_commands.Range[int,1], version: app_commands.Range[int,1],
-                     action: Literal["claim","resolve","reject","reopen"], note: app_commands.Range[str,1,1000] = ""):
+                     action: Literal["claim","resolve","reject","reopen"], note: app_commands.Range[str,1,1000] = "",
+                     member_response: app_commands.Range[str,1,1000] = "", notify: bool = False):
         await interaction.response.defer(ephemeral=True)
-        status = await features.review(interaction.guild,interaction.user,item,version,action,note)
+        status = await features.review(interaction.guild,interaction.user,item,version,action,note,member_response,notify)
         await interaction.followup.send(f"Item #{item}: {status}. Resolving an appeal records the decision; remove a mistaken warning separately.",ephemeral=True)
 
     @desk.command(name="cases",description="View a member's recent moderation case numbers")
@@ -134,16 +144,28 @@ def register_community_commands(bot):
     @community.command(name="schedule",description="Schedule a post; use an ISO date with timezone, such as 2026-12-01T18:00-07:00")
     async def schedule(interaction: discord.Interaction, channel: discord.TextChannel,
                        when: str, message: app_commands.Range[str,1,1800],
-                       repeat_days: app_commands.Range[int,0,365] = 0, notify: bool = False):
+                       repeat_days: app_commands.Range[int,0,365] = 0, notify: bool = False,
+                       timezone_name: str | None = None, recurrence: Literal["once","interval","daily","weekly"] = "interval",
+                       weekdays: str = ""):
+        from .scheduling import calendar_policy, local_timestamp, next_occurrence, zone
         try:
             date = datetime.fromisoformat(when.replace("Z","+00:00"))
         except ValueError:
             raise ValueError("Use a date and time with timezone, such as 2026-12-01T18:00-07:00.") from None
-        if date.tzinfo is None:
-            raise ValueError("Include a timezone offset in the scheduled time.")
+        if date.tzinfo is None and timezone_name is None:
+            raise ValueError("Include a timezone offset, or choose a named timezone such as America/Phoenix.")
+        if recurrence in ("daily","weekly") and timezone_name is None:
+            raise ValueError("Choose a named timezone for local-clock daily or weekly repeats.")
+        tz = zone(timezone_name or "UTC")
+        due = local_timestamp(when,timezone_name) if date.tzinfo is None else date.timestamp()
+        policy = calendar_policy({"timezone":timezone_name or "UTC","recurrence":recurrence,
+                                  "weekdays":[int(day.strip()) for day in weekdays.split(",") if day.strip()],
+                                  "local_time":datetime.fromtimestamp(due,tz).strftime("%H:%M")})
+        if recurrence in ("daily","weekly"):
+            due = next_occurrence(due-1,policy)
         await interaction.response.defer(ephemeral=True)
-        post_id = await features.schedule(interaction.guild,interaction.user,channel.id,message,date.timestamp(),repeat_days,notify,f"interaction:{interaction.id}")
-        await interaction.followup.send(f"Post #{post_id} scheduled for <t:{int(date.timestamp())}:F>.",ephemeral=True)
+        post_id = await features.schedule(interaction.guild,interaction.user,channel.id,message,due,repeat_days,notify,f"interaction:{interaction.id}",policy)
+        await interaction.followup.send(f"Post #{post_id} scheduled for <t:{int(due)}:F> · {policy['timezone']} · {recurrence}.",ephemeral=True)
 
     @community.command(name="posts",description="Privately list upcoming and recent scheduled posts")
     async def posts(interaction: discord.Interaction):
@@ -157,9 +179,25 @@ def register_community_commands(bot):
         await interaction.response.send_message(f"Post #{post} cancelled.",ephemeral=True)
 
     @community.command(name="testfilter",description="Test text rules privately without deleting messages or recording warnings")
-    async def testfilter(interaction: discord.Interaction, text: app_commands.Range[str,1,4000], channel: discord.TextChannel | None = None):
-        result = await features.test_filter(interaction.guild_id,text,channel.id if channel else interaction.channel_id)
-        await interaction.response.send_message((f"Matched **{result['rule']}**; configured action: **{result['action']}**." if result["matched"] else "No text rule matched.") + f"\nModeration: {'on' if result['moderation_enabled'] else 'off'}; observation: {'on' if result['observation_mode'] else 'off'}.\n"+result["note"],ephemeral=True)
+    async def testfilter(interaction: discord.Interaction, text: app_commands.Range[str,1,4000], channel: discord.TextChannel | None = None,
+                         member: discord.Member | None = None, active_warnings: app_commands.Range[int,0,100] = 0,
+                         recent_messages: app_commands.Range[int,0,50] = 0, warning_cooldown: bool = False, edited: bool = False):
+        from .simulation import simulate
+        from .bot import target_error
+        await interaction.response.defer(ephemeral=True)
+        settings = await features.store.settings(interaction.guild_id)
+        context = {"active_warnings":active_warnings,"recent_messages":recent_messages,"warning_cooldown":warning_cooldown,"edited":edited}
+        timeout_error = None
+        if member is not None:
+            member = await interaction.guild.fetch_member(member.id)
+            context.update(role_ids=[role.id for role in member.roles],administrator=member.guild_permissions.administrator,
+                           owner=member.id == interaction.guild.owner_id,bot=member.bot)
+            timeout_error = target_error(None,member,interaction.guild.me)
+            if timeout_error is None and not interaction.guild.me.guild_permissions.moderate_members:
+                timeout_error = "Espresso needs Moderate Members."
+        selected_channel = channel or interaction.channel
+        result = simulate(text,settings,context,channel_id=selected_channel.id,parent_id=getattr(selected_channel,"parent_id",None),timeout_error=timeout_error)
+        await interaction.followup.send((f"Matched **{result['rule']}**; configured action: **{result['action']}**." if result["matched"] else "No text rule matched.") + f"\nModeration: {'on' if result['moderation_enabled'] else 'off'}; observation: {'on' if result['observation_mode'] else 'off'}.\n"+result["note"],ephemeral=True)
 
     @community.command(name="health",description="Check permissions, role placement, and channel setup")
     async def health(interaction: discord.Interaction):

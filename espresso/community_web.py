@@ -8,6 +8,15 @@ from .store import SettingsConflict
 
 
 def decode_extensions(changes, snowflake):
+    if "raid" in changes:
+        if type(changes["raid"]) is not dict:
+            raise ValueError("Invalid raid settings.")
+        changes["raid"] = dict(changes["raid"])
+        for key in ("excluded_channel_ids","excluded_category_ids"):
+            if key in changes["raid"]:
+                if type(changes["raid"][key]) is not list:
+                    raise ValueError("Invalid raid exclusions.")
+                changes["raid"][key] = [snowflake(value) for value in changes["raid"][key]]
     for name, keys in (("welcome",("channel_id",)),("community",("prompt_channel_id","notification_role_id"))):
         if name in changes:
             if type(changes[name]) is not dict:
@@ -31,7 +40,7 @@ def install_community_routes(panel):
             panel.check_csrf(request,session)
             if request.content_type != "application/json":
                 raise web.HTTPUnsupportedMediaType(reason="Send this action as JSON.")
-        guild = await panel.authorize(request,session)
+        guild = await panel.authorize(request,session,permission="moderate_members" if moderation else "manage_guild")
         try:
             actor = await guild.fetch_member(int(session.user["id"]))
             (staff if moderation else manager)(actor)
@@ -75,8 +84,8 @@ def install_community_routes(panel):
 
     async def review(request):
         guild,actor,features = await context(request,write=True,moderation=True)
-        value = await data(request,("version","action","note"))
-        status = await features.review(guild,actor,snowflake(request.match_info["item_id"]),value["version"],value["action"],value["note"])
+        value = await data(request,("version","action","note"),("public_response","notify"))
+        status = await features.review(guild,actor,snowflake(request.match_info["item_id"]),value["version"],value["action"],value["note"],value.get("public_response",""),value.get("notify",False))
         return web.json_response({"status":status})
 
     async def history(request):
@@ -98,7 +107,7 @@ def install_community_routes(panel):
 
     async def test_filter(request):
         guild,actor,features = await context(request,write=True)
-        value = await data(request,("text",),("channel_id",))
+        value = await data(request,("text",),("channel_id","settings","context","member_id"))
         channel_id,parent_id = None,None
         if value.get("channel_id"):
             channel_id = snowflake(value["channel_id"])
@@ -106,7 +115,8 @@ def install_community_routes(panel):
             if not channel.permissions_for(actor).view_channel:
                 raise web.HTTPForbidden(reason="Choose a channel you can view.")
             parent_id = getattr(channel,"parent_id",None)
-        return web.json_response(await features.test_filter(guild.id,value["text"],channel_id,parent_id))
+        from .refinements_web import simulation_payload
+        return web.json_response(await simulation_payload(panel,guild,value))
 
     async def health(request):
         guild,actor,features = await context(request)
@@ -124,12 +134,14 @@ def install_community_routes(panel):
 
     async def schedule(request):
         guild,actor,features = await context(request,write=True)
-        value = await data(request,("channel_id","content","due_at","repeat_days","notify","request_id"))
+        value = await data(request,("channel_id","content","due_at","repeat_days","notify","request_id"),("calendar","local_start"))
         request_id = value["request_id"]
         if type(request_id) is not str or not 8 <= len(request_id) <= 100 or not all(c.isascii() and (c.isalnum() or c == "-") for c in request_id):
             raise ValueError("Invalid scheduling request ID.")
-        post_id = await features.schedule(guild,actor,snowflake(value["channel_id"]),value["content"],value["due_at"],value["repeat_days"],value["notify"],"web:"+request_id)
-        return web.json_response({"id":str(post_id)},status=201)
+        from .refinements_web import prepare_schedule
+        due,calendar = prepare_schedule(value)
+        post_id = await features.schedule(guild,actor,snowflake(value["channel_id"]),value["content"],due,value["repeat_days"],value["notify"],"web:"+request_id,calendar)
+        return web.json_response({"id":str(post_id),"due_at":due,"timezone":calendar["timezone"]},status=201)
 
     async def cancel(request):
         guild,actor,features = await context(request,write=True)

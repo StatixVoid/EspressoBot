@@ -84,6 +84,7 @@ class Store(CommunityStore):
         await self.db.commit()
 
         await self.open_community()
+        await self.open_hub()
 
     async def close(self) -> None:
         if self.db:
@@ -158,7 +159,7 @@ class Store(CommunityStore):
             await self._save(guild_id, settings, actor_id, sorted(changes))
             return settings, await self._version(guild_id)
 
-    async def update(self, guild_id: int, **changes) -> Settings:
+    async def update(self, guild_id: int, *, actor_id=None, **changes) -> Settings:
         async with self.lock:
             value = await self._settings(guild_id)
             data = asdict(value)
@@ -166,10 +167,10 @@ class Store(CommunityStore):
                 raise ValueError("Unknown setting")
             data.update(changes)
             value = Settings(**data)
-            await self._save(guild_id, value)
+            await self._save(guild_id, value, actor_id)
             return value
 
-    async def edit_list(self, guild_id: int, name: str, item, add: bool) -> None:
+    async def edit_list(self, guild_id: int, name: str, item, add: bool, actor_id=None) -> None:
         if name not in {"bad_words", "exempt_roles"}:
             raise ValueError("Unknown list")
         async with self.lock:
@@ -181,20 +182,23 @@ class Store(CommunityStore):
                 values.append(item)
             elif not add and item in values:
                 values.remove(item)
-            await self._save(guild_id, settings)
+            await self._save(guild_id, settings, actor_id)
 
-    async def edit_hate_filter(self, guild_id: int, category: str, **changes) -> None:
+    async def edit_hate_filter(self, guild_id: int, category: str, *, actor_id=None, **changes) -> None:
         async with self.lock:
             settings = await self._settings(guild_id)
             if category not in settings.hate_filters:
                 raise ValueError("Unknown moderation category.")
             settings.hate_filters[category].update(changes)
-            await self._save(guild_id, settings)
+            await self._save(guild_id, settings, actor_id)
 
     async def _save(self, guild_id: int, settings: Settings,
                     actor_id: int | None = None, changed_keys: list[str] | None = None) -> None:
         settings = Settings(**asdict(settings))  # Validate list edits too.
         try:
+            old_version = await self._version(guild_id)
+            old_settings = await self._settings(guild_id)
+            await self.db.execute("INSERT OR IGNORE INTO settings_history VALUES (?,?,NULL,'[]',?,?)",(guild_id,old_version,json.dumps(asdict(old_settings)),time.time()))
             await self.db.execute(
                 "INSERT INTO settings VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET data=excluded.data",
                 (guild_id, json.dumps(asdict(settings))),
@@ -203,6 +207,7 @@ class Store(CommunityStore):
                 "INSERT INTO settings_versions VALUES (?,1) ON CONFLICT(guild_id) DO UPDATE SET version=version+1",
                 (guild_id,),
             )
+            await self.db.execute("INSERT INTO settings_history VALUES (?,?,?,?,?,?)",(guild_id,old_version+1,actor_id,json.dumps(changed_keys or [key for key,value in asdict(settings).items() if value != asdict(old_settings)[key]]),json.dumps(asdict(settings)),time.time()))
             if actor_id is not None:
                 await self.db.execute(
                     "INSERT INTO settings_audit(guild_id,actor_id,changed_keys,created_at) VALUES (?,?,?,?)",
@@ -292,8 +297,11 @@ class Store(CommunityStore):
             await self.db.commit()
 
     async def delete_guild(self, guild_id: int) -> None:
+        from .hub_store import HUB_TABLES
         async with self.lock:
-            for table in ("moderation_cases", "warning_voids", "staff_inbox", "inbox_audit", "scheduled_posts", "raid_recovery", "community_state"):
+            for table in HUB_TABLES:
+                await self.db.execute(f"DELETE FROM {table} WHERE guild_id=?", (guild_id,))
+            for table in ("moderation_cases", "warning_voids", "staff_inbox", "inbox_audit", "scheduled_posts", "raid_recovery", "community_state", "settings_history", "role_menus", "menu_grants"):
                 await self.db.execute(f"DELETE FROM {table} WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM settings WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM warnings WHERE guild_id=?", (guild_id,))

@@ -3,9 +3,10 @@
 import json
 import hashlib
 import time
+from .refinements_store import RefinementStore
 
 
-class CommunityStore:
+class CommunityStore(RefinementStore):
     async def open_community(self):
         await self.db.executescript("""
             CREATE TABLE IF NOT EXISTS moderation_cases (
@@ -62,6 +63,7 @@ class CommunityStore:
             columns = {row["name"] for row in await cursor.fetchall()}
         if "request_hash" not in columns:
             await self.db.execute("ALTER TABLE scheduled_posts ADD COLUMN request_hash TEXT NOT NULL DEFAULT ''")
+        await self.open_refinements()
         # A process dying during a send leaves an uncertain result. Never replay it blindly.
         await self.db.execute("UPDATE scheduled_posts SET status='uncertain',outcome='Process stopped during delivery; check Discord before rescheduling.' WHERE status='sending'")
         await self.db.commit()
@@ -157,12 +159,16 @@ class CommunityStore:
             async with self.db.execute("SELECT * FROM inbox_audit WHERE guild_id=? AND inbox_id=? ORDER BY id", (guild_id,item_id)) as cur:
                 return [dict(row) for row in await cur.fetchall()]
 
-    async def review_inbox(self, guild_id, item_id, actor_id, version, action, note=""):
+    async def review_inbox(self, guild_id, item_id, actor_id, version, action, note="", public_response="", notify=False):
         from .store import SettingsConflict
         if action not in ("claim", "resolve", "reject", "reopen") or type(note) is not str or len(note) > 1000:
             raise ValueError("Invalid review action or note.")
         if action in ("resolve", "reject") and not note.strip():
             raise ValueError("Add a resolution note.")
+        if type(public_response) is not str or len(public_response) > 1000 or type(notify) is not bool:
+            raise ValueError("Member responses support up to 1000 characters and an optional notification.")
+        if (public_response or notify) and action not in ("resolve","reject"):
+            raise ValueError("Member outcome messages are available when resolving or rejecting an item.")
         async with self.lock:
             async with self.db.execute("SELECT * FROM staff_inbox WHERE guild_id=? AND id=?", (guild_id,item_id)) as cur:
                 row = await cur.fetchone()
@@ -178,7 +184,7 @@ class CommunityStore:
             status = {"claim":"in_review","resolve":"resolved","reject":"rejected","reopen":"open"}[action]
             now = time.time()
             try:
-                await self.db.execute("UPDATE staff_inbox SET status=?,assigned_id=?,resolution=?,version=version+1,updated_at=? WHERE guild_id=? AND id=?", (status,None if action == "reopen" else actor_id,note,now,guild_id,item_id))
+                await self.db.execute("UPDATE staff_inbox SET status=?,assigned_id=?,resolution=?,public_response=?,notice_status=?,version=version+1,updated_at=? WHERE guild_id=? AND id=?", (status,None if action == "reopen" else actor_id,note,public_response,"sending" if notify else "not_requested",now,guild_id,item_id))
                 await self.db.execute("INSERT INTO inbox_audit(guild_id,inbox_id,actor_id,action,note,created_at) VALUES (?,?,?,?,?,?)", (guild_id,item_id,actor_id,action,note,now))
                 await self.db.commit()
             except BaseException:
@@ -186,16 +192,18 @@ class CommunityStore:
                 raise
             return status
 
-    async def schedule_post(self, guild_id, channel_id, actor_id, content, due_at, repeat_days, notify, source, now=None):
+    async def schedule_post(self, guild_id, channel_id, actor_id, content, due_at, repeat_days, notify, source, now=None, calendar=None):
         import math
         now = time.time() if now is None else now
+        from .scheduling import calendar_policy
+        policy = calendar_policy(calendar)
         if type(content) is not str or not 1 <= len(content.strip()) <= 1800:
             raise ValueError("Posts must contain 1–1800 characters.")
         if type(due_at) not in (int,float) or not math.isfinite(due_at):
             raise ValueError("Schedule between 10 seconds and one year from now.")
         if type(repeat_days) is not int or not 0 <= repeat_days <= 365 or type(notify) is not bool:
             raise ValueError("Choose 0–365 repeat days and a notification switch.")
-        fingerprint = hashlib.sha256(json.dumps([channel_id,actor_id,content.strip(),float(due_at),repeat_days,notify],ensure_ascii=True).encode()).hexdigest()
+        fingerprint = hashlib.sha256(json.dumps([channel_id,actor_id,content.strip(),float(due_at),repeat_days,notify,policy],ensure_ascii=True).encode()).hexdigest()
         async with self.lock:
             async with self.db.execute("SELECT id,request_hash FROM scheduled_posts WHERE guild_id=? AND source=?", (guild_id,source)) as cur:
                 existing = await cur.fetchone()
@@ -208,7 +216,7 @@ class CommunityStore:
             async with self.db.execute("SELECT COUNT(*) FROM scheduled_posts WHERE guild_id=? AND status='pending'", (guild_id,)) as cur:
                 if (await cur.fetchone())[0] >= 100:
                     raise ValueError("This server already has 100 scheduled posts.")
-            await self.db.execute("INSERT INTO scheduled_posts(guild_id,channel_id,actor_id,content,due_at,repeat_days,notify,source,created_at,request_hash) VALUES (?,?,?,?,?,?,?,?,?,?)", (guild_id,channel_id,actor_id,content.strip(),due_at,repeat_days,notify,source,now,fingerprint))
+            await self.db.execute("INSERT INTO scheduled_posts(guild_id,channel_id,actor_id,content,due_at,repeat_days,notify,source,created_at,request_hash,timezone,recurrence,weekdays,local_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (guild_id,channel_id,actor_id,content.strip(),due_at,repeat_days,notify,source,now,fingerprint,policy["timezone"],policy["recurrence"],json.dumps(policy["weekdays"]),policy["local_time"]))
             await self.db.commit()
             async with self.db.execute("SELECT id FROM scheduled_posts WHERE guild_id=? AND source=?", (guild_id,source)) as cur:
                 return (await cur.fetchone())[0]
@@ -231,19 +239,19 @@ class CommunityStore:
             async with self.db.execute("SELECT * FROM scheduled_posts WHERE status='pending' AND due_at<=? ORDER BY due_at LIMIT 20", (now,)) as cur:
                 rows = [dict(row) for row in await cur.fetchall()]
             for row in rows:
-                await self.db.execute("UPDATE scheduled_posts SET status='sending' WHERE id=?", (row["id"],))
+                await self.db.execute("UPDATE scheduled_posts SET status='sending',version=version+1 WHERE id=?", (row["id"],))
             await self.db.commit()
             return rows
 
     async def finish_post(self, row, status, outcome, message_id=None, now=None):
         now = time.time() if now is None else now
         due = row["due_at"]
-        if status == "sent" and row["repeat_days"]:
-            interval = row["repeat_days"]*86400
-            due += (int(max(0,now-due)//interval)+1)*interval
-            status = "pending"
+        from .scheduling import following_due
+        next_due = following_due(row,now) if status == "sent" else None
+        if next_due is not None:
+            due,status = next_due,"pending"
         async with self.lock:
-            await self.db.execute("UPDATE scheduled_posts SET status=?,outcome=?,message_id=?,due_at=? WHERE id=? AND status='sending'", (status,outcome[:500],message_id,due,row["id"]))
+            await self.db.execute("UPDATE scheduled_posts SET status=?,outcome=?,message_id=?,due_at=?,version=version+1 WHERE id=? AND status='sending'", (status,outcome[:500],message_id,due,row["id"]))
             await self.db.commit()
 
     async def recovery(self, guild_id=None):

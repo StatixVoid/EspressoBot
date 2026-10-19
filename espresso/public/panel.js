@@ -5,7 +5,7 @@ const form = $("#settings-form");
 const categories = {racism:"Racism", misogyny:"Misogyny", trans_hate:"Anti-trans hate"};
 const levelDescriptions = {1:"Core explicit slurs",2:"Adds an expanded slur vocabulary",3:"Adds discriminatory and exclusionary phrases",4:"Adds common spacing, punctuation, and leetspeak slur evasions",5:"Adds broader identity-directed insults and stereotypes; highest risk of false positives"};
 const defaultHate = () => Object.fromEntries(Object.keys(categories).map(key => [key,{enabled:false,level:1,action:"warn",extra_terms:[],allowed_terms:[]}]));
-let availableRoles = [], availableChannels = [], screeningEventsEnabled = false, lastAttempt = null, serversLoading = false;
+let availableRoles = [], availableChannels = [], availableCategories = [], canManage = true, canModerate = true, screeningEventsEnabled = false, lastAttempt = null, serversLoading = false;
 const defaultScreening = () => ({enabled:false,mode:"everyone",minimum_account_age_days:7,verified_role_id:null,entry_channel_id:null,require_agreement:true,rules_text:"I agree to follow this server's rules and respect other members."});
 let csrf = "", currentServer = "", version = 0, baseline = null, dirty = false, busy = false, setupCompleted = false;
 const defaults = {enabled:false,spam_enabled:true,spam_limit:6,spam_window:8,block_links:false,block_invites:true,bad_words:[],exempt_roles:[],log_channel:null,warn_threshold:3,warn_window_hours:24,timeout_minutes:10,hate_filters:defaultHate(),reaction_roles_enabled:false,reaction_roles:[],screening:defaultScreening()};
@@ -102,15 +102,20 @@ async function chooseServer(server, button, initial = null) {
     if (initial?.error) throw new Error(initial.error);
     const data = initial?.data || (preview ? {settings:{...defaults, exempt_roles:["100"], log_channel:"200"}, version:0, roles:[...demoRoles], channels:demoChannels} : await request(`/api/servers/${encodeURIComponent(server.id)}/settings`));
     currentServer = server.id; version = data.version; screeningEventsEnabled = Boolean(data.screening_events_enabled);
-    renderOptions(data.roles, data.channels, data.settings); fill(data.settings);
-    $("#server-description").textContent = preview ? "Example server · make yourself at home." : "Your rules, your community. Changes apply when you save.";
+    canManage = data.access?.manage ?? server.can_manage ?? true; canModerate = data.access?.moderate ?? server.can_moderate ?? true;
+    availableCategories = data.categories || [];
+    if(canManage) {renderOptions(data.roles, data.channels, data.settings); fill(data.settings);}
+    else {availableRoles=[];availableChannels=[];baseline=null;dirty=false;form.hidden=true;$("#setup-guide").hidden=true;}
+    document.querySelectorAll('#panel-tabs [data-manager]').forEach(tab=>tab.hidden=!canManage);
+    $("#tab-desk").hidden=!canModerate;
+    $("#server-description").textContent = preview ? "Example server · make yourself at home." : canManage ? "Your rules, your community. Changes apply when you save." : "Your moderation desk. Reports and cases are available with your current permissions.";
     document.querySelectorAll(".server-item").forEach(node => {node.classList.remove("active"); node.removeAttribute("aria-current");});
     button.classList.add("active"); button.setAttribute("aria-current", "true");
-    showSetup(data.settings); message("");
+    if(canManage)showSetup(data.settings);else $("#run-setup").hidden=true; message("");
     $("#panel-tabs").hidden = false;
     $("#picker-name").textContent = server.name;
     if(matchMedia("(max-width:700px)").matches)$("#server-picker").open = false;
-    document.dispatchEvent(new CustomEvent("espresso:server",{detail:{id:currentServer}}));
+    document.dispatchEvent(new CustomEvent("espresso:server",{detail:{id:currentServer,manage:canManage,moderate:canModerate}}));
     const url = new URL(location.href); url.searchParams.set("server", currentServer); history.replaceState(null,"",url);
   } catch (error) { message(error.message, true); $("#retry-server").hidden = false; $("#server-description").textContent = "This server could not load. Retry here or choose another server."; }
   finally { busy = false; updateSave(); }
@@ -129,7 +134,7 @@ async function loadServers() {
     const data = preview ? {bot_online:true, servers:[{id:"123",name:"The Espresso Lounge",installed:true}]} : await request(`/api/servers?${params}`);
     list.replaceChildren();
     if (!data.bot_online) message("Espresso is offline or reconnecting. Refresh when it's available to manage your servers.");
-    if (!data.servers.length) {list.textContent = "No eligible servers found. You need Manage Server or Administrator permission."; return;}
+    if (!data.servers.length) {list.textContent = "No eligible servers found. You need Manage Server or Moderate Members permission."; return;}
     let first = null, preferred = null;
     for (const server of data.servers) {
       const installed = server.installed === true;

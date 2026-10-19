@@ -89,6 +89,7 @@
     }
   });
   const initialize=async()=>{
+    if(!canManage){host.hidden=true;return;}
     const current=++generation;host.hidden=false;status("Loading templates…");
     try{
       await load();if(current!==generation)return;

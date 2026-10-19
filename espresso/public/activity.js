@@ -10,6 +10,7 @@
   const date = value => Number.isFinite(value) ? new Date(value*1000).toLocaleString() : "Unknown time";
   function status(selector,text,error=false) {const item=node(selector);item.textContent=text;item.classList.toggle("error-text",error);}
   function selectTab(name,load=true) {
+    if(!tabs.some(tab=>tab.dataset.panel===name && !tab.hidden))name="overview";
     active=name;
     for(const tab of tabs) {const selected=tab.dataset.panel===name;tab.setAttribute("aria-selected",String(selected));tab.tabIndex=selected?0:-1;node(`#${tab.dataset.panel}-panel`).hidden=!selected;}
     if(load && server && name === "logs" && !logLoaded) loadLogs();
@@ -20,9 +21,9 @@
     tab.addEventListener("click",()=>selectTab(tab.dataset.panel));
     tab.addEventListener("keydown",event=>{
       if(!["ArrowRight","ArrowLeft","Home","End"].includes(event.key))return;
-      event.preventDefault();let index=tabs.indexOf(tab);
-      index=event.key==="Home"?0:event.key==="End"?tabs.length-1:(index+(event.key==="ArrowRight"?1:-1)+tabs.length)%tabs.length;
-      tabs[index].focus();selectTab(tabs[index].dataset.panel);
+      event.preventDefault();const visible=tabs.filter(item=>!item.hidden);let index=visible.indexOf(tab);
+      index=event.key==="Home"?0:event.key==="End"?visible.length-1:(index+(event.key==="ArrowRight"?1:-1)+visible.length)%visible.length;
+      visible[index].focus();selectTab(visible[index].dataset.panel);
     });
   });
   function reset(id="") {
@@ -31,7 +32,7 @@
     node("#older-logs").hidden=true;node("#more-review").hidden=true;
     node("#refresh-logs").disabled=false;node("#refresh-review").disabled=false;
     node("#publish-verification").disabled=preview;
-    status("#log-message","");status("#review-message","");selectTab("settings",false);
+    status("#log-message","");status("#review-message","");selectTab(canManage?"settings":"overview",false);
   }
   function appendLog(log) {
     const card=element("article",undefined,"activity-card"),header=element("header");
