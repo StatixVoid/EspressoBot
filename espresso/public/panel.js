@@ -6,7 +6,7 @@ const form = $("#settings-form");
 form.noValidate = true;
 let fieldErrorSequence = 0;
 const categories = {racism:"Racism", misogyny:"Misogyny", trans_hate:"Anti-trans hate"};
-const levelDescriptions = {1:"Core explicit slurs",2:"Adds an expanded slur vocabulary",3:"Adds discriminatory and exclusionary phrases",4:"Adds spacing, punctuation, leetspeak, repetition, and Unicode evasions of slurs and phrases",5:"Adds broader identity-directed insults and stereotypes, including combined evasions; highest risk of false positives"};
+const levelDescriptions = {1:"Core explicit slurs",2:"Adds an expanded slur vocabulary",3:"Adds discriminatory and exclusionary phrases",4:"Adds spacing, symbols, masked letters, leetspeak, repetition, and Unicode evasions",5:"Adds broader identity-directed insults and stereotypes, including combined evasions; highest risk of false positives"};
 const defaultHate = () => Object.fromEntries(Object.keys(categories).map(key => [key,{enabled:false,level:1,action:"warn",extra_terms:[],allowed_terms:[]}]));
 let availableRoles = [], availableChannels = [], availableCategories = [], canManage = true, canModerate = true, screeningEventsEnabled = false, lastAttempt = null, serversLoading = false;
 const defaultScreening = () => ({enabled:false,mode:"everyone",minimum_account_age_days:7,verified_role_id:null,entry_channel_id:null,require_agreement:true,rules_text:"I agree to follow this server's rules and respect other members."});

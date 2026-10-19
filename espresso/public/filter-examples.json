@@ -16,6 +16,7 @@
       ]},
       "4": {"title": "Disguised slurs and phrases", "examples": [
         {"text": "k . 1 . k . 3", "label": "Spacing, punctuation, and leetspeak", "matches": "kike", "unicode_evasion": false},
+        {"text": "k*ke", "label": "A symbol masking a letter", "matches": "kike", "unicode_evasion": false},
         {"text": "nо blаck peоple аllоwed", "label": "Latin and Cyrillic lookalikes", "matches": "no black people allowed", "unicode_evasion": true}
       ]},
       "5": {"title": "Broader insults, including combined evasions", "examples": [
@@ -37,6 +38,8 @@
       ]},
       "4": {"title": "Disguised slurs and phrases", "examples": [
         {"text": "b!tch", "label": "Leetspeak substitution", "matches": "bitch", "unicode_evasion": false},
+        {"text": "fem()id", "label": "A pair of brackets used as a letter", "matches": "femoid", "unicode_evasion": false},
+        {"text": "f*m*id", "label": "Two letters masked with symbols", "matches": "femoid", "unicode_evasion": false},
         {"text": "w​o​m​e​n bеlоng in thе kitсhеn", "label": "Invisible separators and mixed-script lookalikes", "matches": "women belong in the kitchen", "unicode_evasion": true}
       ]},
       "5": {"title": "Broader insults, including combined evasions", "examples": [
@@ -58,6 +61,10 @@
       ]},
       "4": {"title": "Disguised slurs and phrases", "examples": [
         {"text": "t.r.4.n.n.y", "label": "Punctuation and leetspeak", "matches": "tranny", "unicode_evasion": false},
+        {"text": "Tr(an)y", "label": "Brackets and a shortened doubled letter", "matches": "tranny", "unicode_evasion": false},
+        {"text": "tr@|\\|y", "label": "Symbol letter shapes and a reviewed shortened spelling", "matches": "tranny", "unicode_evasion": false},
+        {"text": "tr∆nn¥", "label": "Unicode symbols shaped like letters", "matches": "tranny", "unicode_evasion": true},
+        {"text": "tr💜nny", "label": "An emoji replacing a letter", "matches": "tranny", "unicode_evasion": true},
         {"text": "n​o t​rаnѕ p​eоple allоwed", "label": "Invisible separators and Cyrillic lookalikes", "matches": "no trans people allowed", "unicode_evasion": true}
       ]},
       "5": {"title": "Broader insults, including combined evasions", "examples": [

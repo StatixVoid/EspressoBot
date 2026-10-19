@@ -9,7 +9,7 @@ from functools import lru_cache
 import re
 import unicodedata
 
-from .evasion import evasion_view, literal_evasion, phrase_evasion, unicode_disguise
+from .evasion import evasion_view, literal_evasion, masked_evasion, phrase_evasion, unicode_disguise
 
 CATEGORIES = {"racism": "Racism", "misogyny": "Misogyny", "trans_hate": "Anti-trans hate"}
 ACTIONS = {"delete", "warn", "timeout"}
@@ -17,7 +17,7 @@ LEVELS = {
     1: "Core explicit slurs",
     2: "Expanded slur vocabulary",
     3: "Discriminatory and exclusionary phrases",
-    4: "Spacing, punctuation, leetspeak, repetition, and Unicode evasions of slurs and phrases",
+    4: "Spacing, symbols, masked letters, leetspeak, repetition, and Unicode evasions",
     5: "Broader identity-directed insults and stereotypes, including their evasions",
 }
 
@@ -30,6 +30,9 @@ TERMS = {
     "trans_hate": {1: ("tranny", "shemale"),
                     2: ("troon", "trannies", "he-she")},
 }
+# Reviewed spelling variants, used only at evasion levels. Do not collapse
+# every doubled letter: that would turn ordinary words/names into matches.
+EVASION_SPELLINGS = {"trans_hate": {"tranny": ("trany",), "trannies": ("tranies",)}}
 GROUP = r"(?:black|white|asian|latino|latina|hispanic|arab|jewish|indigenous) (?:people|men|women)"
 PATTERNS = {
     "racism": {
@@ -109,6 +112,8 @@ def starter_patterns(category,level):
             literals.extend(literal_pattern(term) for term in terms)
             if level>=4:
                 evasions.extend(evasion_pattern(term) for term in terms)
+                evasions.extend(evasion_pattern(variant) for term in terms
+                                for variant in EVASION_SPELLINGS.get(category,{}).get(term,()))
     for minimum,patterns in PATTERNS[category].items():
         if level>=minimum:
             literals.extend(patterns)
@@ -121,6 +126,18 @@ def starter_patterns(category,level):
 def extra_pattern(term,evasive=False):
     pattern = literal_evasion(term) if evasive else re.escape(term)
     return re.compile(boundary(pattern)) if pattern else None
+
+
+@lru_cache(maxsize=15)
+def masked_starters(category,level):
+    terms = [term for minimum,terms in TERMS[category].items() if level>=minimum for term in terms]
+    terms += [variant for term in tuple(terms) for variant in EVASION_SPELLINGS.get(category,{}).get(term,())]
+    return tuple(pattern for term in terms if (pattern:=masked_evasion(term,plural=True)) is not None)
+
+
+@lru_cache(maxsize=1024)
+def masked_extra(term):
+    return masked_evasion(term)
 
 
 def detect(text: str, filters: dict) -> ContentDecision | None:
@@ -151,8 +168,10 @@ def detect(text: str, filters: dict) -> ContentDecision | None:
                                 for pattern in literal for match in pattern.finditer(normalized.text))
         if not disguised and config["level"]>=4:
             if folded is None:
-                folded = evasion_view(original)
+                folded = evasion_view(original,strip_formatting=True)
             evasive += tuple(pattern for term in extras if (pattern:=extra_pattern(term,True)) is not None)
+            evasive += masked_starters(category,config["level"])
+            evasive += tuple(pattern for term in extras if (pattern:=masked_extra(term)) is not None)
             for pattern in evasive:
                 for match in pattern.finditer(folded.text):
                     source = folded.source(match,original)
