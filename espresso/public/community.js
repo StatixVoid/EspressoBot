@@ -4,7 +4,7 @@
   const make=(tag,text,cls)=>{const item=document.createElement(tag);if(text!==undefined)item.textContent=text;if(cls)item.className=cls;return item;};
   const date=value=>new Date(value*1000).toLocaleString();
   let server="",generation=0,inboxCursor=null,caseCursor=null,deskLoaded=false,toolsLoaded=false;
-  let postRequestId=crypto.randomUUID(),caseUser="";
+  let postRequestId=crypto.randomUUID(),caseUser="",testRevision=0;
   const busy=new Set();
   function status(where,text,error=false) {node(where).textContent=text;node(where).classList.toggle("error-text",error);}
   const endpoint=path=>`/api/servers/${encodeURIComponent(server)}/${path}`;
@@ -25,7 +25,8 @@
   function reset(id="") {
     server=id;generation++;busy.clear();inboxCursor=null;caseCursor=null;deskLoaded=false;toolsLoaded=false;caseUser="";postRequestId=crypto.randomUUID();
     for(const selector of ["#inbox-list","#case-list","#health-list","#post-list","#protection-list"])node(selector).replaceChildren();
-    for(const selector of ["#desk-message","#tools-message","#filter-result","#schedule-result"])status(selector,"");
+    for(const selector of ["#desk-message","#tools-message","#filter-result","#schedule-result","#filter-test-context"])status(selector,"");
+    node("#filter-result").removeAttribute("data-state");delete node("#filter-result").dataset.stale;testRevision++;
     node("#more-inbox").hidden=true;node("#more-cases").hidden=true;node("#end-protection").hidden=true;
     node("#case-search").reset();node("#filter-test").reset();node("#schedule-post").reset();
     selectChannels(node("#filter-test select"),"Server defaults");selectChannels(node("#schedule-post select"),"Choose a channel…");
@@ -114,9 +115,21 @@
   }
   node("#filter-test").addEventListener("submit",event=>{event.preventDefault();action("filter","#filter-result",async token=>{
     if(preview){status("#filter-result","Connect your server to test its saved filters. The live test reports the matched rule and action without taking any moderation action.");return;}
-    const form=event.currentTarget,result=await write("test-filter",window.espressoRefinements.simulationBody(form));if(token!==generation)return;
-    status("#filter-result",(result.matched?`Matched: ${result.rule}. Configured action: ${result.action}.`:"No text rule matched.")+`\nModeration ${result.moderation_enabled?"on":"off"}; observation ${result.observation_mode?"on":"off"}.\n${result.note}`);
+    const form=event.currentTarget,recipe=form.elements.recipe.value,revision=testRevision;
+    node("#filter-result").removeAttribute("data-state");delete node("#filter-result").dataset.stale;status("#filter-result","Testing this message…");
+    const result=await write("test-filter",window.espressoRefinements.simulationBody(form));if(token!==generation)return;
+    if(revision!==testRevision){status("#filter-result","Inputs changed while the test was running. Run the test again for the current values.");return;}
+    window.espressoWorkspace.renderSimulation(result,recipe);
   },event.currentTarget.querySelector("button"));});
+  function testEdited(){
+    testRevision++;
+    if(node("#filter-result").hasAttribute("data-state"))node("#filter-result").dataset.stale="true";
+  }
+  node("#filter-test").addEventListener("input",testEdited);node("#filter-test").addEventListener("change",testEdited);
+  document.querySelector("#settings-form").addEventListener("input",event=>{
+    if(!event.target.closest("#settings-navigator") && node("#filter-test [name=recipe]").value==="unsaved")testEdited();
+  });
+  document.addEventListener("espresso:saved",testEdited);
   node("#schedule-post").addEventListener("input",()=>{postRequestId=crypto.randomUUID();});
   node("#schedule-post").addEventListener("submit",event=>{event.preventDefault();if(preview)return;const form=event.currentTarget;action("schedule","#schedule-result",async token=>{
     const due=new Date(form.elements.when.value).getTime()/1000;if(!Number.isFinite(due))throw new Error("Choose a date and time.");

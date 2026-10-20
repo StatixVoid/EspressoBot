@@ -53,6 +53,8 @@ The panel includes **Activity log** and **Member review** tabs, with phone-frien
 
 ## What is included
 
+The dashboard includes settings search, section shortcuts, a review of unsaved changes, keyboard saving, and shared draft protection for Settings and Community hub. Phone navigation uses compact scrolling tabs. Filter-testing shortcuts show the effective action separately from the matched rule and flag outdated results. See [dashboard navigation and drafts](docs/REFINEMENTS.md#finding-settings-and-protecting-drafts).
+
 New community tools include private reports and appeals, a staff case desk, individual warning removal and optional expiry, trusted domains and channel rules, a filter tester and observation mode, timed raid protection, server health checks, custom welcomes, scheduled announcements and reminders, opt-in role notifications, coffee cards, polls, and daily prompts. Open **Staff desk** or **Community & tools** in the dashboard. See [community tools and setup](docs/COMMUNITY_FEATURES.md) for the new commands, permissions, scheduling, recovery behavior, and privacy details. New automatic and café features start off per server.
 
 The refinement update adds a moderator-only dashboard, `/myreports` and optional private outcomes, an overview, settings rollback previews, named-timezone calendar repeats and post editing/pause/recovery, a moderation simulator for unsaved settings and member context, raid exclusions and countdowns, persistent button/dropdown role menus, custom coffee-card designs, and a server-written prompt library. See [refinement setup and behavior](docs/REFINEMENTS.md). Install updated requirements and restart the app after upgrading.

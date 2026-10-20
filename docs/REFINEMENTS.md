@@ -2,6 +2,24 @@
 
 This update adds report follow-through, a moderator dashboard, calendar scheduling and post editing, a moderation simulator, raid controls, settings history, an overview, persistent role menus, coffee-card styling, and custom prompts. Restart Espresso after deploying so `/myreports` and the expanded commands register. The launcher installs the pinned `tzdata` package, which supplies named timezones on Windows.
 
+## Finding settings and protecting drafts
+
+Settings has a search box and a section picker. Search finds labels and help text, opens the relevant advanced section, and focuses the control. It does not search private field values or uncensored examples. Press `/` outside an input to focus search; Enter opens a result without saving. Review the changed fields beside Save before applying a recipe. Ctrl+S (Command+S on macOS) saves the active Settings or Community hub form.
+
+A shared banner and tab indicators identify unsaved Settings and Community hub changes. Switching tabs keeps both drafts. Switching servers, refreshing the server list, signing out, or leaving the page checks both forms; a pending settings save blocks server changes. Returning a hub field to its saved value clears that change. Edits made during a hub save stay marked unsaved after its earlier response arrives. Drafts live in the open page only and are not automatically saved or stored in browser storage. Other message composers, schedules, and FAQ editors do not participate in this settings-draft guard.
+
+Dashboard links retain the selected tab through a `tab` query parameter and page reloads. An unavailable or unauthorized tab falls back to Overview. On phones, dashboard tabs scroll horizontally and retain arrow-key, Home, and End navigation. The decorative-background pause control is in the server picker so it does not cover Save.
+
+### Browser regression checks
+
+The additional interaction checks run without a live server or Discord credentials. With Node.js and Playwright installed, run:
+
+```text
+node tests/browser/workspace.cjs
+```
+
+The script uses Microsoft Edge on Windows, or Playwright's Chromium elsewhere. `PLAYWRIGHT_CHANNEL` can select another installed browser channel; `PLAYWRIGHT_MODULE` can point to an existing Playwright package. Requests, server data, permission changes, failed saves, and delayed replies use isolated fixtures. The Python suite remains available through the standard launcher.
+
 ## Reports and moderator access
 
 Members use `/myreports [before]` to read only their own report/appeal status and member-facing response. Older items can be paged by the last displayed ID. Internal notes, assignments, reported content, and other members' submissions are not included in this command.
@@ -36,6 +54,8 @@ Failed or uncertain posts have a recovery editor. Choose a new future time and r
 Choose **Saved settings** or **Current unsaved form**, enter sample text, and select a channel. Optionally choose hypothetical roles or provide a member ID. A member ID uses fresh Discord roles, administrator/owner/bot exemptions, and timeout hierarchy; it overrides hypothetical roles. Warning count and recent-message count are explicitly hypothetical inputs, not inferred member history.
 
 The simulator follows enabled/disabled channel rules, exempt roles, text filters, the selected spam count, edited-message behavior, observation mode, automatic warning cooldown, configured escalation, and timeout hierarchy. It explains the likely outcome and the active warning count after the event. A longer existing timeout would be preserved. No message is sent/deleted and no warning, timeout, case, or settings write occurs.
+
+Each abuse category has a **Try this filter** shortcut that opens the tester using the current unsaved form. Results separate the matched rule from the effective action, show moderation/observation status and warning counts, and explain each step. A matched rule can still mean no action when moderation is off or the member is exempt. Changing test inputs or the unsaved recipe marks a prior result as out of date; a response to older inputs is not presented as the current result. Preview mode still explains testing and requires connecting a server to run the real simulator.
 
 `/community testfilter` supports `member`, `active_warnings`, `recent_messages`, `warning_cooldown`, and `edited` using saved settings. The dashboard additionally supports hypothetical roles and unsaved settings. These are simulations: actual event timing, warning deduplication, permission changes, and Discord errors can change live results.
 

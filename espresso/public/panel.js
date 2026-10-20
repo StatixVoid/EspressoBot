@@ -45,8 +45,11 @@ function screeningRequirements() {
   for (const name of ["screening_verified_role_id","screening_entry_channel_id"]) form.elements[name].required = enabled;
 }
 async function request(url, options = {}) {
-  const response = await fetch(url, {credentials:"same-origin", ...options, headers:{...options.headers}});
-  const data = await response.json();
+  let response;
+  try {response = await fetch(url, {credentials:"same-origin", ...options, headers:{...options.headers}});}
+  catch (error) {throw new Error("Couldn't reach Espresso. Check your connection and try again. If you were posting or taking a staff action, check Discord before retrying.");}
+  let data = null;
+  try {data = await response.json();} catch (error) {/* A proxy may return an HTML error page. */}
   if (!response.ok) {
     if (response.status === 401) {
       form.hidden = true;
@@ -55,8 +58,14 @@ async function request(url, options = {}) {
       $("#logout").hidden = true;
       document.dispatchEvent(new Event("espresso:unauthorized"));
     }
-    throw new Error(data.error || "Something went wrong. Please try again.");
+    const fallback = response.status === 401 ? "Your sign-in expired. Sign in again to continue." :
+      response.status === 403 ? "Your access changed. Refresh your server list to check your permissions." :
+      response.status === 409 ? "This server was updated elsewhere. Your edits are still here. Review them before refreshing the server." :
+      response.status === 429 ? "Too many requests. Wait a moment before trying again." :
+      "Espresso couldn't complete this request. Try again in a moment. Check Discord before repeating a post or staff action.";
+    const error = new Error(typeof data?.error === "string" ? data.error : fallback); error.status = response.status; throw error;
   }
+  if (!data || typeof data !== "object") throw new Error("Espresso returned an unexpected response. Your edits are still here. Try again in a moment.");
   return data;
 }
 function snapshot() {
@@ -103,6 +112,7 @@ function updateSave() {
   $("#save-settings").disabled = preview || busy || !dirty;
   $("#reset-settings").disabled = busy || !dirty;
   $("#save-state").textContent = preview ? "Explore freely. This preview isn't saved." : busy ? "Saving your recipe…" : dirty ? "You have unsaved changes." : "Your recipe is up to date.";
+  window.espressoWorkspace.updateSettings(baseline ? snapshot() : null, baseline, dirty, busy && (!form.hidden || !$("#setup-guide").hidden));
 }
 function renderOptions(roles, channels, settings) {
   availableRoles = roles; availableChannels = channels;
@@ -123,7 +133,8 @@ function renderOptions(roles, channels, settings) {
   if (settings.log_channel && !channels.some(c => c.id === settings.log_channel)) select.add(new Option("Unavailable channel — choose a new channel", settings.log_channel));
 }
 async function chooseServer(server, button, initial = null) {
-  if (busy || (dirty && !confirm("Discard unsaved changes and switch servers?"))) return;
+  if (busy || !window.espressoWorkspace.canLeave("switching servers")) return;
+  dirty = false; baseline = null;
   lastAttempt = [server,button]; $("#retry-server").hidden = true; $("#panel-tabs").hidden = true;
   document.dispatchEvent(new Event("espresso:loading"));
   busy = true; form.hidden = true; $("#setup-guide").hidden = true; message("Loading this server's recipe…"); updateSave();
@@ -151,10 +162,10 @@ async function chooseServer(server, button, initial = null) {
   finally { busy = false; updateSave(); }
 }
 async function loadServers() {
-  if (busy || serversLoading || (dirty && !confirm("Discard unsaved changes and refresh servers?"))) return;
+  if (busy || serversLoading || !window.espressoWorkspace.canLeave("refreshing servers")) return;
   serversLoading = true; $("#refresh-servers").disabled = true; $("#panel-tabs").hidden = true; $("#retry-server").hidden = true;
   document.dispatchEvent(new Event("espresso:loading"));
-  form.hidden = true; $("#setup-guide").hidden = true; $("#run-setup").hidden = true; dirty = false; message("");
+  form.hidden = true; $("#setup-guide").hidden = true; $("#run-setup").hidden = true; dirty = false; baseline = null; updateSave(); message("");
   $("#moderation-status").hidden = true;
   const list = $("#server-list"); list.textContent = "Loading your servers…";
   try {
@@ -189,7 +200,8 @@ async function loadServers() {
 $("#retry-server").addEventListener("click",()=>{if(lastAttempt) chooseServer(...lastAttempt);});
 $("#server-picker").addEventListener("click",event=>{if(event.target.closest("summary") && !matchMedia("(max-width:700px)").matches)event.preventDefault();});
 matchMedia("(max-width:700px)").addEventListener("change",event=>{$("#server-picker").open=!event.matches || !currentServer;});
-function settingsEdited() {
+function settingsEdited(event) {
+  if (event?.target.closest("#settings-navigator")) return;
   if (form.querySelector("[data-save-invalid]")) {clearSettingsErrors();message("");}
   screeningRequirements();
   if (baseline) dirty = JSON.stringify(snapshot()) !== JSON.stringify(baseline);
@@ -221,11 +233,11 @@ form.addEventListener("submit", async event => {
 });
 $("#refresh-servers").addEventListener("click", loadServers);
 $("#logout").addEventListener("click", async () => {
-  if (dirty && !confirm("Discard unsaved changes and sign out?")) return;
-  try {await request("/auth/logout", {method:"POST",headers:{"X-CSRF-Token":csrf}}); dirty = false; location.assign("/");}
+  if (!window.espressoWorkspace.canLeave("signing out")) return;
+  try {await request("/auth/logout", {method:"POST",headers:{"X-CSRF-Token":csrf}}); dirty = false; window.espressoWorkspace.setDraft("settings",false);window.espressoWorkspace.setDraft("hub",false);location.assign("/");}
   catch (error) {message(error.message,true);}
 });
-window.addEventListener("beforeunload", event => {if (dirty && !preview) {event.preventDefault(); event.returnValue = "";}});
+window.addEventListener("beforeunload", event => {if (window.espressoWorkspace.hasChanges() && !preview) {event.preventDefault(); event.returnValue = "";}});
 
 function showSetup(settings, force = false) {
   const guide = $("#setup-guide");
@@ -251,11 +263,11 @@ $("#setup-no-logs").addEventListener("change", () => {
   const select = $("#setup-log-channel"), off = $("#setup-no-logs").checked;
   select.disabled = off; select.required = !off;
 });
-$("#setup-guide").addEventListener("input", () => {dirty = true;});
-$("#setup-guide").addEventListener("change", () => {dirty = true;});
+$("#setup-guide").addEventListener("input", () => {dirty = true;updateSave();});
+$("#setup-guide").addEventListener("change", () => {dirty = true;updateSave();});
 $("#setup-advanced").addEventListener("click", () => {
   if (dirty && !confirm("Discard the guide's unsaved choices and open all settings?")) return;
-  dirty = false; $("#setup-guide").hidden = true; form.hidden = false;
+  dirty = false; $("#setup-guide").hidden = true; form.hidden = false; updateSave();
   message("Choose your settings below, then save. You can also reopen the setup guide from the server menu.");
 });
 $("#run-setup").addEventListener("click", () => {
@@ -275,6 +287,7 @@ $("#setup-guide").addEventListener("submit", async event => {
     for (const config of Object.values(changes.hate_filters)) Object.assign(config,{enabled:preset === "balanced",level:2,action:"warn"});
   }
   busy = true; $("#setup-save").disabled = true;
+  updateSave();
   const controls = Array.from(event.currentTarget.elements).filter(control => !control.disabled);
   controls.forEach(control => control.disabled = true);
   message("Saving this server's setup…");
@@ -302,6 +315,9 @@ function renderHate(filters) {
     const describe = () => {card.querySelector("[data-level-output]").textContent = `${slider.value} / 5`;card.querySelector("[data-level-description]").textContent = levelDescriptions[slider.value];slider.setAttribute("aria-valuetext",`Level ${slider.value}: ${levelDescriptions[slider.value]}`);};
     slider.addEventListener("input",describe); describe(); container.append(card);
     window.espressoHateExamples.attach(card,category,title,slider);
+    const test = document.createElement("button"); test.type = "button"; test.className = "text-button filter-test-link";
+    test.textContent = "Try this filter →"; test.setAttribute("aria-label","Try the " + title + " filter");
+    test.addEventListener("click",()=>window.espressoWorkspace.openTester(category));card.append(test);
   }
 }
 function renderScreening(config) {

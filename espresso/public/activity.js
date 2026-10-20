@@ -13,6 +13,10 @@
     if(!tabs.some(tab=>tab.dataset.panel===name && !tab.hidden))name="overview";
     active=name;
     for(const tab of tabs) {const selected=tab.dataset.panel===name;tab.setAttribute("aria-selected",String(selected));tab.tabIndex=selected?0:-1;node(`#${tab.dataset.panel}-panel`).hidden=!selected;}
+    if(load && server) {
+      const url = new URL(location.href); url.searchParams.set("tab",name); history.replaceState(null,"",url);
+      tabs.find(tab=>tab.dataset.panel===name)?.scrollIntoView({block:"nearest",inline:"nearest"});
+    }
     if(load && server && name === "logs" && !logLoaded) loadLogs();
     if(load && server && name === "review" && !reviewLoaded) loadReview();
     document.dispatchEvent(new CustomEvent("espresso:tab",{detail:{name}}));
@@ -32,7 +36,10 @@
     node("#older-logs").hidden=true;node("#more-review").hidden=true;
     node("#refresh-logs").disabled=false;node("#refresh-review").disabled=false;
     node("#publish-verification").disabled=preview;
-    status("#log-message","");status("#review-message","");selectTab(canManage?"settings":"overview",false);
+    status("#log-message","");status("#review-message","");
+    selectTab(id ? new URL(location.href).searchParams.get("tab") || (canManage?"settings":"overview") : (canManage?"settings":"overview"),false);
+    const token=generation;
+    if(id)queueMicrotask(()=>{if(token===generation)selectTab(active);});
   }
   function appendLog(log) {
     const card=element("article",undefined,"activity-card"),header=element("header");
@@ -110,5 +117,6 @@
   document.addEventListener("espresso:loading",()=>reset());
   document.addEventListener("espresso:unauthorized",()=>{reset();node("#panel-tabs").hidden=true;});
   document.addEventListener("espresso:saved",()=>{logLoaded=false;reviewLoaded=false;});
+  document.addEventListener("DOMContentLoaded",()=>{if(server)selectTab(active);},{once:true});
   if(currentServer)reset(currentServer);
 })();
