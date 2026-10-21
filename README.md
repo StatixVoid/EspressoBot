@@ -22,6 +22,8 @@ Open **http://localhost:8080**. With an empty bot token, the site runs in previe
 
 The website uses the clean coffee-cup logo, a pink/purple connected-particle background inspired by harperurias.com, and an interactive house-blend receipt for exploring example moderation settings. The background can be paused and respects reduced-motion preferences.
 
+The homepage adds a Sabrina-inspired café illustration, a wider desktop layout, and decorative side accents on very wide screens. Sections enter gently as you scroll; Pause background and reduced-motion preferences also stop the new effects. The illustration is decorative, and the existing coffee-cup logo and unofficial project notice remain.
+
 The **On the menu** feature catalog shows what is available and what is still being built. **Member screening is available**, with a home-page overview of account-age checks, rules agreement, access roles, and staff review. To keep the website and bio current as features ship, see [website content maintenance](docs/WEBSITE_CONTENT.md).
 
 The home page reads **`GET /api/stats`** every 30 seconds while visible. Server totals come directly from the running bot's current Discord server cache, so joins and removals appear on the next refresh. The endpoint publishes only the aggregate count, connection status, gateway heartbeat latency, and check time; server names, IDs, member data, and credentials are excluded. Preview mode, a disconnected bot, or a failed request shows a clear state with unavailable values instead of a made-up count. Run the website and bot together for live stats; `--web-only` always shows preview status.

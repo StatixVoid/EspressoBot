@@ -1,0 +1,56 @@
+/* Product-specific illustration and layout; shared portfolio tokens stay intact. */
+.espresso-artwork .wrap{width:min(1380px,calc(100% - clamp(2rem,6vw,7rem)))}
+.espresso-artwork .hero{grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:clamp(2rem,5vw,6rem);padding-block:clamp(2.5rem,4vw,5rem)}
+.espresso-artwork .hero-copy{max-width:40rem}
+.espresso-artwork .hero h1{font-size:clamp(3.3rem,5.5vw,5.5rem)}
+.espresso-artwork .hero .intro{max-width:34rem;font-size:.96rem;line-height:1.85}
+.espresso-artwork .hero-art{min-height:0;background:none;padding:0;isolation:isolate}
+.hero-portrait{position:relative;width:min(100%,420px);aspect-ratio:2/3;margin:0}
+.hero-portrait::before{content:"";position:absolute;inset:12% -7% 12%;z-index:-1;border:1px solid #b183b52b;border-radius:50%;background:radial-gradient(ellipse,#ead2ee80,transparent 65%);transform:rotate(-12deg)}
+.hero-portrait img{display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 12px 20px #65436910)}
+.espresso-artwork .mini-log{position:absolute;bottom:11%;left:-2%;width:min(310px,80%);margin:0;transform:rotate(-3deg)}
+.espresso-artwork .art-caption{margin:.8rem 0 0;text-align:center}
+.espresso-artwork .art-star.star-one{top:10%;right:3%;font-size:48px}
+.espresso-artwork .art-star.star-two{top:45%;left:3%;font-size:29px}
+.espresso-artwork .live-counter{margin-top:.4rem}
+.espresso-artwork .feature-menu{grid-template-columns:repeat(3,minmax(0,1fr))}
+.espresso-artwork .feature-menu-card{padding:1.8rem}
+.espresso-artwork .workspace-intro,.espresso-artwork .hub-intro{gap:clamp(2rem,5vw,5rem)}
+.espresso-artwork .section{padding-block:clamp(3rem,4.5vw,5.5rem)}
+.side-muse,.side-coffee{display:none;pointer-events:none;user-select:none}
+.muse-motion .muse-reveal{opacity:0;transform:translateY(18px);transition:opacity .55s ease,transform .55s ease}
+.muse-motion .muse-reveal.is-visible,.muse-motion .muse-reveal:focus-within{opacity:1;transform:none}
+.motion-paused .muse-reveal{opacity:1;transform:none;transition:none}
+@media(min-width:1900px){
+ .side-muse{display:block;position:fixed;z-index:0;width:clamp(190px,calc((100vw - 1380px)/2 - 3rem),280px);right:max(1.5rem,calc((100vw - 1380px)/2 - 320px));top:43%;opacity:0;transform:translate(12px,calc(-30% + var(--muse-drift,0px)));transition:opacity .35s ease,translate .35s ease}
+ .side-muse img{display:block;width:100%;height:auto}
+ .muse-docked:not(.muse-near-footer) .side-muse{opacity:.94;translate:-12px 0}
+ .side-coffee{display:block;position:fixed;z-index:0;left:max(2rem,calc((100vw - 1380px)/2 - 220px));top:41%;width:150px;opacity:.2;transform:rotate(-12deg)}
+ .side-coffee img{display:block;width:100%;height:auto}
+ .side-coffee::before{content:"✧";position:absolute;top:-2rem;left:1rem;font-size:2.5rem;color:var(--accent)}
+ .side-coffee::after{content:"✦";position:absolute;right:0;bottom:-1rem;font-size:1.5rem;color:var(--pink)}
+}
+@media(max-width:1050px){
+ .espresso-artwork .hero h1{font-size:clamp(3rem,5.7vw,4.5rem)}
+ .hero-portrait{width:min(100%,340px)}
+ .espresso-artwork .mini-log{left:0;width:min(270px,92%);padding:14px 16px}
+ .espresso-artwork .feature-menu{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+ .espresso-artwork .hero{grid-template-columns:minmax(0,1fr);gap:1.5rem;padding-top:2.5rem;padding-bottom:2rem}
+ .espresso-artwork .hero-copy{max-width:36rem}
+ .espresso-artwork .hero h1{font-size:clamp(2.8rem,10.5vw,4.3rem)}
+ .espresso-artwork .hero .intro{font-size:.9rem}
+ .hero-portrait{width:min(280px,80%)}
+ .espresso-artwork .hero-art{width:100%;max-width:440px;justify-self:center;padding:0}
+ .espresso-artwork .mini-log{bottom:8%;left:0;width:min(270px,80%)}
+ .espresso-artwork .feature-menu{grid-template-columns:minmax(0,1fr)}
+ .espresso-artwork .feature-menu-card{padding:1.5rem}
+ .espresso-artwork .art-caption{font-size:.8rem}
+}
+@media(prefers-reduced-motion:reduce){
+ html{scroll-behavior:auto}
+ .muse-motion .muse-reveal{opacity:1;transform:none;transition:none}
+ .side-muse{transform:translateY(-30%);transition:none}
+}
+.motion-paused .side-muse{transform:translateY(-30%);transition:none}

@@ -92,3 +92,9 @@ body { position: relative; isolation: isolate; }
   .blend-section { grid-template-columns: 1fr; gap: 2.5rem; padding-bottom: 4rem; } .blend-copy { max-width: none; } .blend-receipt { margin-inline: .3rem; padding: 1.5rem; transform: rotate(1deg); } .receipt-lines { font-size: .65rem; } .receipt-lines div { gap: .5rem; } .background-toggle { font-size: .55rem; } .site-footer { padding-bottom: 3rem; }
 }
 @media (prefers-reduced-motion: reduce) { .hero-coffee { animation: none; } .background-toggle { display: none; } }
+
+/* Small shared details on the portfolio and product site. */
+.hero-note a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.background-toggle { font-size: .68rem; min-height: 36px; }
+.site-footer nav { flex-wrap: wrap; }
+.site-footer nav a { display: inline-flex; align-items: center; min-height: 44px; }

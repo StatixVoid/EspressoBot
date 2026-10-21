@@ -1,0 +1,18 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
+
+/* Shared by harperurias.com and Espresso. Keep the portfolio copy in sync. */
+:root {
+  --background: #f5edf7;
+  --surface: #fff9fd;
+  --surface-soft: #f4e7f5;
+  --border: #8d5f993d;
+  --text: #201225;
+  --muted: #6f5b74;
+  --accent: #7f4d9d;
+  --pink: #d46bb2;
+  --deep: #180d1f;
+  --radius: 16px;
+  --shadow: 0 12px 35px #37153c0a;
+  --font-sans: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  --font-display: "Playfair Display", Georgia, serif;
+}
