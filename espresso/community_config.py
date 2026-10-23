@@ -4,6 +4,8 @@ from dataclasses import replace
 import re
 from urllib.parse import urlsplit
 
+from .coffee_menu import CHARACTER_BY_ID
+
 
 def default_raid():
     return {"enabled": False, "join_limit": 10, "window_seconds": 20,
@@ -20,7 +22,7 @@ def default_community():
     return {"coffee_enabled": False, "polls_enabled": False,
             "prompts_enabled": False, "prompt_channel_id": None,
             "prompt_hour_utc": 16, "notification_role_id": None,
-            "coffee_style": "classic", "coffee_title": "A little pick-me-up ☕",
+            "coffee_style": "classic", "coffee_character": "sabrina", "coffee_title": "A little pick-me-up ☕",
             "coffee_message": "{sender} brought {member} {drink}.\nMade with a little kindness.",
             "coffee_color": "D8A7B1", "prompt_library": []}
 
@@ -114,6 +116,8 @@ def validate_extensions(settings):
         raise ValueError("Choose a daily prompt channel.")
     if community["coffee_style"] not in ("classic", "pastel", "midnight", "custom"):
         raise ValueError("Choose a coffee card style.")
+    if type(community["coffee_character"]) is not str or community["coffee_character"] not in CHARACTER_BY_ID:
+        raise ValueError("Choose a café character or just the drink.")
     if type(community["coffee_title"]) is not str or not 1 <= len(community["coffee_title"].strip()) <= 100:
         raise ValueError("Coffee titles need 1–100 characters.")
     if type(community["coffee_message"]) is not str or not 1 <= len(community["coffee_message"].strip()) <= 1000:

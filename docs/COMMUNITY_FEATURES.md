@@ -62,7 +62,9 @@ Delivery is claimed persistently before sending. A restart during delivery, time
 
 Each feature starts off and is optional per server:
 
-- `/coffee member` sends a friendly coffee card, with a 30-second per-member cooldown and no notification pings.
+- `/coffee member [drink] [character]` sends a friendly illustrated café card, with a 30-second per-member cooldown and no notification pings. Choose from 12 real drinks, including espresso, cold brew, hot chocolate, chai, and matcha, or leave the drink as `surprise`. Autocomplete lists the supported beverage names. Hot chocolate is coffee-free; cocoa still contains some caffeine.
+- `/drinks [member]` opens a private beverage menu with drink and character selectors. Choose a recipient or leave it empty for a treat for yourself, then press **Send card** to post in the current channel. The menu lasts three minutes; sending rechecks whether cards remain enabled and whether you and Espresso can post. Invalid choices and missing permissions do not use your cooldown.
+- Cards can feature Sabrina, Velvet Guardian, Cloud Dreamer, Honey Spark, or **Just the drink**. Staff choose the server's default character alongside the card's style, color, title, and message in Community settings. Character artwork ships with the bot and requires **Attach Files**; all cards require **Embed Links**. Simple cards work without attachment permission. Existing server settings inherit Sabrina as their default character.
 - `/poll question options [hours]` creates a native Discord poll. Separate 2–10 unique answer options with `|`; duration is 1–168 hours. A member may start one poll every two minutes. Both the member and bot need channel posting and Send Polls permissions.
 - **Daily conversation starters** post a rotating café prompt in the chosen channel. Select the hour in UTC; 16 UTC is 9 AM in Arizona. The first connected worker tick after that hour queues one prompt for the current UTC day. It skips previous days and persists the date to avoid duplicate prompts after restart. Moving or disabling prompts before delivery cancels the queued prompt.
 

@@ -11,6 +11,7 @@ import time
 import discord
 
 from .community_config import channel_settings
+from .coffee_menu import DRINKS, drink_choice, character_choice, character_asset
 from .rules import content_decision, normalize
 
 LOG = logging.getLogger("espresso")
@@ -476,20 +477,45 @@ class CommunityManager:
         self.command_cooldowns.move_to_end(key)
         self.bound(self.command_cooldowns,10000)
 
-    async def coffee(self, interaction, member):
+    async def coffee(self, interaction, member, drink="surprise", character=None):
         self.require_public_post(interaction)
         settings = await self.store.settings(interaction.guild_id)
         if not settings.community["coffee_enabled"]:
             raise ValueError("Coffee cards are off. Ask an admin to enable them in Community settings.")
-        self.command_limit(interaction.guild_id,interaction.user.id,"coffee",30)
-        drink = random.choice(("a caramel latte","a vanilla cold brew","a cappuccino","a cozy hot chocolate","an espresso"))
         policy = settings.community
+        chosen_drink = drink_choice(drink)
+        chosen_character = character_choice(policy["coffee_character"] if character is None else character)
+        if not isinstance(member,discord.Member) or member.guild.id != interaction.guild_id:
+            raise ValueError("Choose someone in this server for your café card.")
+        permissions = interaction.channel.permissions_for(interaction.guild.me)
+        if not permissions.embed_links:
+            raise ValueError("Espresso needs Embed Links permission to send a café card here.")
+        artwork = character_asset(chosen_character["id"])
+        if artwork is not None and artwork.is_file() and not permissions.attach_files:
+            raise ValueError("Espresso needs Attach Files permission for character artwork. Choose character:none for a simple card.")
+        chosen_drink = chosen_drink or random.choice(DRINKS)
         colors = {"classic":COLOR,"pastel":0xC9B5EB,"midnight":0x41314D,"custom":int(policy["coffee_color"],16)}
-        text = policy["coffee_message"].replace("{sender}",interaction.user.mention).replace("{member}",member.mention).replace("{drink}",drink)
+        text = policy["coffee_message"].replace("{sender}",interaction.user.mention).replace("{member}",member.mention).replace("{drink}",chosen_drink["description"])
         embed = discord.Embed(title=policy["coffee_title"],description=text,color=colors[policy["coffee_style"]])
-        embed.set_footer(text=f"Freshly brewed · {policy['coffee_style']} blend")
-        embed.set_thumbnail(url=member.display_avatar.url)
-        await interaction.response.send_message(embed=embed,allowed_mentions=discord.AllowedMentions.none())
+        embed.add_field(name=f"{chosen_drink['emoji']} {chosen_drink['name']}",value=chosen_drink["note"],inline=False)
+        caffeine = "Coffee-free · cocoa contains some caffeine" if chosen_drink["caffeine"] == "cocoa" else "Contains caffeine"
+        embed.add_field(name="Your order",value=f"{'Served over ice' if chosen_drink['temperature'] == 'iced' else 'Served warm'} · {caffeine}",inline=False)
+        if chosen_character["id"] != "none":
+            embed.add_field(name=chosen_character["name"],value=chosen_character["tagline"],inline=False)
+        embed.set_footer(text=f"Freshly brewed · {policy['coffee_style']} blend · a little kindness")
+        attachment = None
+        try:
+            if artwork is not None and artwork.is_file():
+                attachment = discord.File(artwork,filename=artwork.name)
+                embed.set_image(url=f"attachment://{artwork.name}")
+            self.command_limit(interaction.guild_id,interaction.user.id,"coffee",30)
+            payload = {"embed":embed,"allowed_mentions":discord.AllowedMentions.none()}
+            if attachment is not None:
+                payload["file"] = attachment
+            await interaction.response.send_message(**payload)
+        finally:
+            if attachment is not None:
+                attachment.close()
 
     async def poll(self, interaction, question, options, hours):
         self.require_public_post(interaction,poll=True)

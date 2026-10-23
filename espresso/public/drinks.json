@@ -1,0 +1,23 @@
+{
+  "drinks": [
+    {"id":"espresso","name":"Espresso","description":"an espresso","category":"coffee","temperature":"hot","note":"A small, rich shot of freshly brewed coffee.","caffeine":"caffeinated","emoji":"☕"},
+    {"id":"americano","name":"Americano","description":"an Americano","category":"coffee","temperature":"hot","note":"Espresso topped with hot water for a longer sip.","caffeine":"caffeinated","emoji":"☕"},
+    {"id":"cappuccino","name":"Cappuccino","description":"a cappuccino","category":"coffee","temperature":"hot","note":"Espresso, steamed milk, and a cloud of milk foam.","caffeine":"caffeinated","emoji":"☁️"},
+    {"id":"flat-white","name":"Flat white","description":"a flat white","category":"coffee","temperature":"hot","note":"Espresso with smooth steamed milk and fine microfoam.","caffeine":"caffeinated","emoji":"☕"},
+    {"id":"latte","name":"Caffè latte","description":"a caffè latte","category":"coffee","temperature":"hot","note":"Espresso softened with plenty of steamed milk.","caffeine":"caffeinated","emoji":"🥛"},
+    {"id":"mocha","name":"Caffè mocha","description":"a caffè mocha","category":"coffee","temperature":"hot","note":"Espresso, chocolate, and steamed milk.","caffeine":"caffeinated","emoji":"🍫"},
+    {"id":"caramel-latte","name":"Caramel latte","description":"a caramel latte","category":"coffee","temperature":"hot","note":"Espresso and steamed milk with a sweet caramel swirl.","caffeine":"caffeinated","emoji":"🍯"},
+    {"id":"cold-brew","name":"Cold brew","description":"a cold brew","category":"coffee","temperature":"iced","note":"Slow-steeped coffee served chilled over ice.","caffeine":"caffeinated","emoji":"🧊"},
+    {"id":"iced-latte","name":"Iced latte","description":"an iced latte","category":"coffee","temperature":"iced","note":"Espresso poured over cold milk and ice.","caffeine":"caffeinated","emoji":"🧊"},
+    {"id":"hot-chocolate","name":"Hot chocolate","description":"a hot chocolate","category":"cocoa","temperature":"hot","note":"Warm milk and chocolate for a cozy cocoa break.","caffeine":"cocoa","emoji":"🍫"},
+    {"id":"chai-latte","name":"Chai latte","description":"a chai latte","category":"tea","temperature":"hot","note":"Spiced black tea with warm steamed milk.","caffeine":"caffeinated","emoji":"🫖"},
+    {"id":"matcha-latte","name":"Matcha latte","description":"a matcha latte","category":"tea","temperature":"hot","note":"Whisked green tea and steamed milk.","caffeine":"caffeinated","emoji":"🍵"}
+  ],
+  "characters": [
+    {"id":"sabrina","name":"Sabrina","tagline":"A little pop-star sparkle for your coffee break.","image":"/assets/sabrina-muse-v1.png"},
+    {"id":"guardian","name":"Velvet Guardian","tagline":"A warm cup and a little courage for your next quest.","image":"/assets/cafe-guardian-v1.png"},
+    {"id":"dreamer","name":"Cloud Dreamer","tagline":"Soft skies, slow sips, and room to recharge.","image":"/assets/cafe-dreamer-v1.png"},
+    {"id":"spark","name":"Honey Spark","tagline":"A sweet little adventure, one sip at a time.","image":"/assets/cafe-spark-v1.png"},
+    {"id":"none","name":"Just the drink","tagline":"A simple café card, made with kindness.","image":""}
+  ]
+}

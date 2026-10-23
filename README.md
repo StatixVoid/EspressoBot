@@ -22,7 +22,7 @@ Open **http://localhost:8080**. With an empty bot token, the site runs in previe
 
 The website uses the clean coffee-cup logo, a pink/purple connected-particle background inspired by harperurias.com, and an interactive house-blend receipt for exploring example moderation settings. The background can be paused and respects reduced-motion preferences.
 
-The homepage adds a Sabrina-inspired café illustration, a wider desktop layout, and decorative side accents on very wide screens. Sections enter gently as you scroll; Pause background and reduced-motion preferences also stop the new effects. The illustration is decorative, and the existing coffee-cup logo and unofficial project notice remain.
+The homepage features unofficial Sabrina-inspired café artwork, a beverage menu, and original café heroes. Pick a drink and character to preview a friendly card, then use `/drinks` in Discord to send one. The site respects reduced-motion preferences and includes a Pause background control. Character artwork is decorative and does not represent an endorsement.
 
 The **On the menu** feature catalog shows what is available and what is still being built. **Member screening is available**, with a home-page overview of account-age checks, rules agreement, access roles, and staff review. To keep the website and bio current as features ship, see [website content maintenance](docs/WEBSITE_CONTENT.md).
 

@@ -7,6 +7,87 @@ from typing import Literal
 import discord
 from discord import app_commands
 
+from .coffee_menu import DRINKS, CHARACTERS, drink_choice, character_choice
+
+
+class CoffeeMenuView(discord.ui.View):
+    """A short-lived private order; posting always rechecks the live server policy."""
+
+    def __init__(self, features, owner_id, guild_id, member, character):
+        super().__init__(timeout=180)
+        self.features, self.owner_id, self.guild_id, self.member = features, owner_id, guild_id, member
+        self.drink, self.character = "surprise", character
+        self.sending = False
+        self.sent = False
+        self.drink_select = discord.ui.Select(placeholder="Choose your drink",row=0,options=[
+            discord.SelectOption(label="Surprise me",value="surprise",description="Let the café choose your next sip",emoji="✨",default=True),
+            *(discord.SelectOption(label=drink["name"],value=drink["id"],description=drink["note"][:100],emoji=drink["emoji"]) for drink in DRINKS),
+        ])
+        self.character_select = discord.ui.Select(placeholder="Choose a café hero",row=1,options=[
+            discord.SelectOption(label=item["name"],value=item["id"],description=item["tagline"][:100],default=item["id"] == character) for item in CHARACTERS
+        ])
+        self.send_button = discord.ui.Button(label="Send card",style=discord.ButtonStyle.primary,emoji="☕",row=2)
+        self.drink_select.callback = self.choose_drink
+        self.character_select.callback = self.choose_character
+        self.send_button.callback = self.send_card
+        for item in (self.drink_select,self.character_select,self.send_button):
+            self.add_item(item)
+
+    def embed(self):
+        selected = drink_choice(self.drink)
+        hero = character_choice(self.character)
+        embed = discord.Embed(title="Espresso's beverage menu",description="Pick a drink and a café companion, then send a little kindness.\nYour card will appear in this channel, without a notification ping.",color=0xC9B5EB)
+        for category,label in (("coffee","☕ Coffee"),("cocoa","🍫 Cocoa"),("tea","🍵 Tea")):
+            embed.add_field(name=label,value=" · ".join(item["name"] for item in DRINKS if item["category"] == category),inline=False)
+        embed.add_field(name="Your order",value=(f"**{selected['name']}** — {selected['note']}" if selected else "**Surprise me** — a random drink from the whole menu.") + f"\nCompanion: **{hero['name']}**",inline=False)
+        embed.set_footer(text="This menu closes after 3 minutes · coffee cards share a 30-second cooldown")
+        return embed
+
+    async def interaction_check(self, interaction):
+        if interaction.user.id != self.owner_id or interaction.guild_id != self.guild_id:
+            await interaction.response.send_message("Open your own menu with /drinks to make an order.",ephemeral=True)
+            return False
+        return True
+
+    async def choose_drink(self, interaction):
+        self.drink = self.drink_select.values[0]
+        drink_choice(self.drink)
+        for option in self.drink_select.options:
+            option.default = option.value == self.drink
+        await interaction.response.edit_message(embed=self.embed(),view=self)
+
+    async def choose_character(self, interaction):
+        self.character = self.character_select.values[0]
+        character_choice(self.character)
+        for option in self.character_select.options:
+            option.default = option.value == self.character
+        await interaction.response.edit_message(embed=self.embed(),view=self)
+
+    async def send_card(self, interaction):
+        if self.sent or self.sending:
+            await interaction.response.send_message("This order is already being served. Open /drinks for another.",ephemeral=True)
+            return
+        self.sending = True
+        try:
+            await self.features.coffee(interaction,self.member,self.drink,self.character)
+        except (ValueError,discord.HTTPException,OSError) as exc:
+            message = str(exc) if isinstance(exc,ValueError) else "Your café card could not be confirmed. Check the channel before trying again."
+            if interaction.response.is_done():
+                await interaction.followup.send(message,ephemeral=True)
+            else:
+                await interaction.response.send_message(message,ephemeral=True)
+            return
+        finally:
+            self.sending = False
+        self.sent = True
+        for item in self.children:
+            item.disabled = True
+        self.stop()
+        try:
+            await interaction.message.edit(view=self)
+        except discord.HTTPException:
+            pass
+
 
 def register_community_commands(bot):
     from .bot import StaffGroup, safe
@@ -101,8 +182,30 @@ def register_community_commands(bot):
 
     @bot.tree.command(name="coffee",description="Send someone a little Espresso coffee card")
     @app_commands.guild_only()
-    async def coffee(interaction: discord.Interaction, member: discord.Member):
-        await features.coffee(interaction,member)
+    @app_commands.describe(drink="Pick a beverage, or leave surprise for a random order",character="Choose a café companion, or use this server's default")
+    @app_commands.choices(character=[app_commands.Choice(name=item["name"],value=item["id"]) for item in CHARACTERS])
+    async def coffee(interaction: discord.Interaction, member: discord.Member, drink: str = "surprise",
+                     character: Literal["sabrina","guardian","dreamer","spark","none"] | None = None):
+        await features.coffee(interaction,member,drink,character)
+
+    @coffee.autocomplete("drink")
+    async def coffee_drink_choices(interaction: discord.Interaction, current: str):
+        query = current.casefold().strip()
+        choices = [app_commands.Choice(name="Surprise me",value="surprise")] if not query or query in "surprise me" else []
+        choices.extend(app_commands.Choice(name=item["name"],value=item["id"]) for item in DRINKS
+                       if not query or query in item["name"].casefold() or query in item["id"] or query in item["category"])
+        return choices[:25]
+
+    @bot.tree.command(name="drinks",description="Privately browse the beverage menu and build a café card")
+    @app_commands.guild_only()
+    @app_commands.describe(member="Who is the card for? Leave empty for a treat for yourself")
+    async def drinks(interaction: discord.Interaction, member: discord.Member | None = None):
+        features.require_public_post(interaction)
+        settings = await features.store.settings(interaction.guild_id)
+        if not settings.community["coffee_enabled"]:
+            raise ValueError("Coffee cards are off. Ask an admin to enable them in Community settings.")
+        view = CoffeeMenuView(features,interaction.user.id,interaction.guild_id,member or interaction.user,settings.community["coffee_character"])
+        await interaction.response.send_message(embed=view.embed(),view=view,ephemeral=True,allowed_mentions=discord.AllowedMentions.none())
 
     @bot.tree.command(name="poll",description="Create a community poll; separate answer options with |")
     @app_commands.guild_only()

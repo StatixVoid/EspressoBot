@@ -33,6 +33,7 @@
 @media(max-width:1050px){
  .espresso-artwork .hero h1{font-size:clamp(3rem,5.7vw,4.5rem)}
  .hero-portrait{width:min(100%,340px)}
+ .hero-portrait::before{inset:14% 10%}
  .espresso-artwork .mini-log{left:0;width:min(270px,92%);padding:14px 16px}
  .espresso-artwork .feature-menu{grid-template-columns:repeat(2,minmax(0,1fr))}
 }

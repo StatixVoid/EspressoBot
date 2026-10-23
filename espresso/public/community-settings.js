@@ -4,7 +4,7 @@ window.espressoExtensions = (() => {
     observation_mode:false, allowed_domains:[], channel_rules:[], warning_expiry_days:0,
     raid:{enabled:false,join_limit:10,window_seconds:20,repeat_limit:5,action:"alert",slowmode_seconds:15,duration_minutes:10,excluded_channel_ids:[],excluded_category_ids:[]},
     welcome:{enabled:false,channel_id:null,message:"Welcome {member} to {server}! Grab a coffee and make yourself at home. ☕"},
-    community:{coffee_enabled:false,polls_enabled:false,prompts_enabled:false,prompt_channel_id:null,prompt_hour_utc:16,notification_role_id:null,coffee_style:"classic",coffee_title:"A little pick-me-up ☕",coffee_message:"{sender} brought {member} {drink}.\nMade with a little kindness.",coffee_color:"D8A7B1",prompt_library:[]}
+    community:{coffee_enabled:false,polls_enabled:false,prompts_enabled:false,prompt_channel_id:null,prompt_hour_utc:16,notification_role_id:null,coffee_style:"classic",coffee_character:"sabrina",coffee_title:"A little pick-me-up ☕",coffee_message:"{sender} brought {member} {drink}.\nMade with a little kindness.",coffee_color:"D8A7B1",prompt_library:[]}
   };
   const control = name => document.querySelector(`#settings-form [name="${name}"]`);
   const selectOptions = (name,options,value,empty) => {

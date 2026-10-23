@@ -123,7 +123,13 @@ window.espressoRefinements = (() => {
     const result=preview?{menus:[]}:await request(url("role-menus"));if(token!==generation)return;$r("#role-menu-list").replaceChildren();
     result.menus.forEach(row=>{const item=card(`${row.data.title} · ${row.status}`,`Menu #${row.id} · channel ${row.channel_id}`);if(row.status==="uncertain")item.append(make("p","Check Discord for a message before publishing a replacement. Disable this request to retire any uncertain controls."));if(row.status!=="disabled")item.append(button("Disable menu",b=>run(`menu:${row.id}`,"#menu-message",async token=>{const result=await write(`role-menus/${row.id}/disable`,{});if(token!==generation)return;await loadMenus();status("#menu-message",result.message);},b,true)));$r("#role-menu-list").append(item);});
   });}
-  function coffeePreview(){if(!canManage)return;const values=snapshot().community,host=$r("#coffee-card-preview");const colors={classic:"#d8a7b1",pastel:"#c9b5eb",midnight:"#41314d",custom:/^[a-f0-9]{6}$/i.test(values.coffee_color)?"#"+values.coffee_color:"#d8a7b1"};host.style.setProperty("--coffee-color",colors[values.coffee_style]);host.replaceChildren(make("h3",values.coffee_title),make("p",values.coffee_message.replaceAll("{sender}","You").replaceAll("{member}","a friend").replaceAll("{drink}","a caramel latte")));}
+  function coffeePreview(){
+    if(!canManage||!baseline||form.hidden)return;
+    const values=snapshot().community,host=$r("#coffee-card-preview");
+    window.espressoDrinks?.renderCard(host,{title:values.coffee_title,message:values.coffee_message,
+      style:values.coffee_style,color:values.coffee_color,character:values.coffee_character,
+      drink:$r("#coffee-preview-drink").value||"caramel-latte"});
+  }
   function reset(id=""){
     server=id;generation++;pending.clear();historyCursor=null;overviewLoaded=false;historyLoaded=false;menuRequest=crypto.randomUUID();calendarMonth=new Date();
     for(const selector of ["#overview-metrics","#overview-actions","#history-list","#history-preview","#post-calendar","#role-menu-list","#menu-options"])$r(selector).replaceChildren();
@@ -138,6 +144,9 @@ window.espressoRefinements = (() => {
   $r("#calendar-prev").addEventListener("click",()=>{calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()-1,1);loadCalendar();});$r("#calendar-next").addEventListener("click",()=>{calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+1,1);loadCalendar();});
   $r("#add-menu-option").addEventListener("click",addMenuOption);$r("#role-menu-form").addEventListener("input",()=>{menuRequest=crypto.randomUUID();menuPreview();});$r("#role-menu-form").addEventListener("change",()=>{menuRequest=crypto.randomUUID();menuPreview();});
   $r("#role-menu-form").addEventListener("submit",event=>{event.preventDefault();run("publish-menu","#menu-message",async token=>{const result=await write("role-menus",{channel_id:event.currentTarget.elements.channel_id.value,menu:menuChoices(),request_id:menuRequest});if(token!==generation)return;await loadMenus();status("#menu-message",result.status==="active"?`Role menu #${result.id} is ready in Discord.`:"Posting is uncertain. Check the channel and retire this request before publishing another copy.");},event.currentTarget.querySelector('button[type=submit]'),true);});
+  $r("#coffee-preview-drink").addEventListener("change",coffeePreview);
+  $r("#reset-settings").addEventListener("click",coffeePreview);
+  document.addEventListener("espresso:drinks-ready",coffeePreview);
   document.querySelectorAll('#settings-form [name^="community_coffee_"]').forEach(item=>item.addEventListener("input",coffeePreview));
   document.addEventListener("espresso:server",event=>reset(event.detail.id));document.addEventListener("espresso:loading",()=>reset());document.addEventListener("espresso:unauthorized",()=>reset());
   document.addEventListener("espresso:saved",()=>{overviewLoaded=false;historyLoaded=false;coffeePreview();});

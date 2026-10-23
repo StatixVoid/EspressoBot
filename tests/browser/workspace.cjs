@@ -22,7 +22,7 @@ async function main() {
   const browser = await chromium.launch({headless:true,channel:process.env.PLAYWRIGHT_CHANNEL || (process.platform==="win32"?"msedge":undefined)});
   try {
     const page = await browser.newPage({viewport:{width:1440,height:1000}}), errors = [], dialogs = [], unexpected = [];
-    page.on("pageerror",error=>{errors.push(error.message);console.error("Browser error: "+error.message);});
+    page.on("pageerror",error=>{errors.push(error.message);console.error("Browser error: "+error.stack);});
     let acceptDialogs=false, mode="manager", settings=defaults(), hub=hubDefaults(), version=0, hubVersion=0, writes=0, failure="", releaseSave=null, holdSave=false, releaseTest=null, holdTest=false, notifySave=null, notifyTest=null;
     page.on("dialog",async dialog=>{dialogs.push(dialog.message());await (acceptDialogs?dialog.accept():dialog.dismiss());});
     const roles=[{id:"31",name:"Support team"}], channels=[{id:"20",name:"general",kind:"text",can_log:true}];
@@ -72,6 +72,17 @@ async function main() {
     const visible=selector=>page.locator(selector).waitFor({state:"visible"});
     const waitFor=fn=>page.waitForFunction(fn);
     await page.goto(site+"/dashboard?server=1");await visible("#settings-form");
+    await page.locator(".design-details summary").click();
+    await page.locator("#coffee-card-preview h3").waitFor();
+    await page.locator("#coffee-preview-drink").selectOption("hot-chocolate");
+    assert.match(await page.locator("#coffee-card-preview").innerText(),/a hot chocolate/);
+    assert.equal(await page.locator("#save-settings").isDisabled(),true);
+    await page.locator("[name=community_coffee_character]").selectOption("guardian");
+    assert.match(await page.locator("#coffee-card-preview").innerText(),/Velvet Guardian/);
+    assert.equal(await page.locator("#save-settings").isDisabled(),false);
+    await page.locator("#reset-settings").click();
+    assert.match(await page.locator("#coffee-card-preview").innerText(),/Sabrina/);
+    assert.equal(await page.locator("#save-settings").isDisabled(),true);
     await page.locator("[name=block_links]").check();
     await page.locator("#settings-search").fill("timeout minutes");assert.equal(await page.locator(".setting-search-hit").count(),1);
     await page.locator("#settings-search").press("Enter");assert.equal(writes,0);assert.equal(await page.locator("[name=timeout_minutes]").evaluate(node=>node===document.activeElement),true);

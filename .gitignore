@@ -15,4 +15,5 @@ __pycache__/
 htmlcov/
 .local/
 node_modules/
-assets/branding/*-prompt.txt
+assets/branding/*-prompt.*
+assets/branding/prompts/
