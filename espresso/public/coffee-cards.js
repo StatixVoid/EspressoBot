@@ -60,8 +60,8 @@ window.espressoDrinks = (() => {
         ? previousImage : make("img", undefined, "drink-card-character");
       image.src = character.image;
       image.alt = "";
-      image.width = 1024;
-      image.height = 1536;
+      image.width = 1254;
+      image.height = 1254;
       image.loading = "eager";
       image.decoding = "async";
       host.append(image);

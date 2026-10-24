@@ -67,8 +67,8 @@ class CoffeeCardsTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("chocolate",embed.fields[0].value)
         self.assertIn("cocoa contains some caffeine",embed.fields[1].value)
         self.assertEqual(embed.fields[2].name,"Sabrina")
-        self.assertEqual(embed.image.url,"attachment://sabrina-muse-v1.png")
-        self.assertEqual(sent["file"].filename,"sabrina-muse-v1.png")
+        self.assertEqual(embed.image.url,"attachment://sabrina-card-v1.png")
+        self.assertEqual(sent["file"].filename,"sabrina-card-v1.png")
         self.assertTrue(sent["file"].fp.closed)
         self.assertFalse(sent["allowed_mentions"].users)
         self.assertFalse(sent["allowed_mentions"].roles)
@@ -137,7 +137,7 @@ class CoffeeCardsTests(unittest.IsolatedAsyncioTestCase):
         sent = interaction.response.send_message.await_args.kwargs
         self.assertIn("a cold brew",sent["embed"].description)
         self.assertIn("Served over ice",sent["embed"].fields[1].value)
-        self.assertEqual(sent["file"].filename,"sabrina-muse-v1.png")
+        self.assertEqual(sent["file"].filename,"sabrina-card-v1.png")
 
     async def test_private_menu_rechecks_feature_and_permissions_before_send(self):
         await self.enable(coffee_character="none")

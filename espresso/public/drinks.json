@@ -14,10 +14,10 @@
     {"id":"matcha-latte","name":"Matcha latte","description":"a matcha latte","category":"tea","temperature":"hot","note":"Whisked green tea and steamed milk.","caffeine":"caffeinated","emoji":"🍵"}
   ],
   "characters": [
-    {"id":"sabrina","name":"Sabrina","tagline":"A little pop-star sparkle for your coffee break.","image":"/assets/sabrina-muse-v1.png"},
-    {"id":"guardian","name":"Velvet Guardian","tagline":"A warm cup and a little courage for your next quest.","image":"/assets/cafe-guardian-v1.png"},
-    {"id":"dreamer","name":"Cloud Dreamer","tagline":"Soft skies, slow sips, and room to recharge.","image":"/assets/cafe-dreamer-v1.png"},
-    {"id":"spark","name":"Honey Spark","tagline":"A sweet little adventure, one sip at a time.","image":"/assets/cafe-spark-v1.png"},
+    {"id":"sabrina","name":"Sabrina","tagline":"A little pop-star sparkle for your coffee break.","image":"/assets/sabrina-card-v1.png"},
+    {"id":"guardian","name":"Velvet Guardian","tagline":"A warm cup and a little courage for your next quest.","image":"/assets/cafe-guardian-card-v1.png"},
+    {"id":"dreamer","name":"Cloud Dreamer","tagline":"Soft skies, slow sips, and room to recharge.","image":"/assets/cafe-dreamer-card-v1.png"},
+    {"id":"spark","name":"Honey Spark","tagline":"A sweet little adventure, one sip at a time.","image":"/assets/cafe-spark-card-v1.png"},
     {"id":"none","name":"Just the drink","tagline":"A simple café card, made with kindness.","image":""}
   ]
 }

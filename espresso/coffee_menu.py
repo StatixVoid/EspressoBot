@@ -11,10 +11,10 @@ CHARACTERS = tuple(_catalog["characters"])
 DRINK_BY_ID = {drink["id"]: drink for drink in DRINKS}
 CHARACTER_BY_ID = {character["id"]: character for character in CHARACTERS}
 CHARACTER_ASSETS = {
-    "sabrina": "sabrina-muse-v1.png",
-    "guardian": "cafe-guardian-v1.png",
-    "dreamer": "cafe-dreamer-v1.png",
-    "spark": "cafe-spark-v1.png",
+    "sabrina": "sabrina-card-v1.png",
+    "guardian": "cafe-guardian-card-v1.png",
+    "dreamer": "cafe-dreamer-card-v1.png",
+    "spark": "cafe-spark-card-v1.png",
 }
 
 # Artwork always resolves through this allowlist, never through a member's path or URL.
