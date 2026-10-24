@@ -70,15 +70,60 @@ window.espressoDrinks = (() => {
 
   const menu = document.querySelector("#cafe-menu");
   if (menu) ready.then(data => {
-    let filter = "all", selected = "caramel-latte", character = "sabrina";
+    let filter = "all", selected = data.drinks.some(item => item.id === "caramel-latte") ? "caramel-latte" : data.drinks[0].id;
+    let character = data.characters.some(item => item.id === "sabrina") ? "sabrina" : data.characters[0]?.id;
     const list = menu.querySelector("#drink-list");
     const preview = menu.querySelector("#drink-card-demo");
     const name = menu.querySelector("#drink-recipient");
     const status = menu.querySelector("#drink-menu-status");
     const characterPicker = menu.querySelector("#drink-character");
     const mobilePicker = menu.querySelector("#drink-mobile-choice");
+    const previewKey = "espresso.menu-preview.v1";
+    const remember = menu.querySelector("#drink-remember-preview");
+    const load = menu.querySelector("#drink-load-preview");
+    const clear = menu.querySelector("#drink-clear-preview");
+    const preferenceStatus = menu.querySelector("#drink-preview-status");
+    let savedPreview = null, preferenceState = "unknown";
     characterPicker.replaceChildren(...data.characters.map(item => new Option(item.name, item.id)));
+    characterPicker.value = character;
     const visible = () => data.drinks.filter(item => filter === "all" || item.category === filter);
+
+    function validPreview(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value) ||
+          Object.keys(value).length !== 2 || !Object.hasOwn(value, "drink") || !Object.hasOwn(value, "character")) return null;
+      const validId = id => typeof id === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(id);
+      if (!validId(value.drink) || !validId(value.character) ||
+          !data.drinks.some(item => item.id === value.drink) || !data.characters.some(item => item.id === value.character)) return null;
+      return {drink:value.drink, character:value.character};
+    }
+    function readPreview() {
+      savedPreview = null;
+      try {
+        const raw = localStorage.getItem(previewKey);
+        if (raw === null) { preferenceState = "none"; return; }
+        if (raw.length > 256) { preferenceState = "invalid"; return; }
+        try { savedPreview = validPreview(JSON.parse(raw)); }
+        catch { /* Invalid browser data is ignored without changing the current card. */ }
+        preferenceState = savedPreview ? "saved" : "invalid";
+      } catch { preferenceState = "unavailable"; }
+    }
+    function updatePreviewPreference(message) {
+      remember.disabled = false;
+      load.disabled = !savedPreview;
+      clear.disabled = preferenceState === "none";
+      if (message) { preferenceStatus.textContent = message; return; }
+      if (savedPreview) {
+        const drink = data.drinks.find(item => item.id === savedPreview.drink);
+        const companion = data.characters.find(item => item.id === savedPreview.character);
+        preferenceStatus.textContent = `Saved preview available: ${drink.name} · ${companion.name}. Choose Load my preview to apply it.`;
+      } else if (preferenceState === "invalid") {
+        preferenceStatus.textContent = "The saved preview no longer matches this menu and was ignored. Remember a new preview or clear the saved entry.";
+      } else if (preferenceState === "unavailable") {
+        preferenceStatus.textContent = "Your browser couldn't read saved previews. You can still try the menu without saving.";
+      } else {
+        preferenceStatus.textContent = "No saved preview in this browser. Remembering is optional; changing the menu saves nothing.";
+      }
+    }
     function updateCard() {
       renderCard(preview, {drink: selected, character, member: name.value.trim() || "a friend", style: "pastel"});
       mobilePicker.value = selected;
@@ -128,11 +173,54 @@ window.espressoDrinks = (() => {
         status.textContent = "Type /drinks in your Discord server to open the beverage menu.";
       }
     });
+    remember.addEventListener("click", () => {
+      const choice = validPreview({drink:selected, character});
+      if (!choice) { updatePreviewPreference("Choose a drink and café companion from the current menu before remembering a preview."); return; }
+      try {
+        localStorage.setItem(previewKey, JSON.stringify(choice));
+        readPreview();
+        if (!savedPreview || savedPreview.drink !== choice.drink || savedPreview.character !== choice.character) throw new Error("Save could not be confirmed");
+        updatePreviewPreference("Preview remembered in this browser. Only the drink and café companion were saved; your Discord usual is separate.");
+      } catch {
+        savedPreview = null; preferenceState = "unavailable";
+        updatePreviewPreference("Your browser couldn't save or confirm this preview. Check its storage settings before trying again.");
+      }
+    });
+    load.addEventListener("click", () => {
+      readPreview();
+      if (!savedPreview) { updatePreviewPreference(); return; }
+      selected = savedPreview.drink; character = savedPreview.character;
+      if (!visible().some(item => item.id === selected)) {
+        filter = "all";
+        menu.querySelectorAll("[data-drink-filter]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.drinkFilter === "all")));
+      }
+      characterPicker.value = character;
+      renderMenu();
+      updatePreviewPreference("Loaded your preview's drink and café companion. Recipient text was never saved. Nothing was sent to Discord.");
+    });
+    clear.addEventListener("click", () => {
+      try {
+        localStorage.removeItem(previewKey);
+        if (localStorage.getItem(previewKey) !== null) throw new Error("Clear could not be confirmed");
+        savedPreview = null; preferenceState = "none";
+        updatePreviewPreference("Saved preview cleared from this browser. The current card and your Discord usual are unchanged.");
+      } catch {
+        savedPreview = null; preferenceState = "unavailable";
+        updatePreviewPreference("Your browser couldn't clear or confirm removing the saved preview. Check its storage settings or clear this site's data there.");
+      }
+    });
+    window.addEventListener("storage", event => {
+      if (event.key !== previewKey && event.key !== null) return;
+      readPreview(); updatePreviewPreference();
+    });
     renderMenu();
     menu.querySelectorAll("[data-menu-control]").forEach(node => { node.disabled = false; });
+    readPreview(); updatePreviewPreference();
     status.textContent = "12 drinks. Four friendly faces. Always on the house.";
   }).catch(error => {
     menu.querySelector("#drink-menu-status").textContent = error.message;
+    const preferenceStatus = menu.querySelector("#drink-preview-status");
+    if (preferenceStatus) preferenceStatus.textContent = "Saved previews are unavailable while the menu cannot load. Nothing was loaded or changed.";
   });
   return {ready, renderCard};
 })();

@@ -49,7 +49,8 @@ class CoffeeCardsTests(unittest.IsolatedAsyncioTestCase):
         self.member.mention = "<@10>"
         self.actor.mention = "<@90>"
         return SimpleNamespace(guild=self.guild,guild_id=1,user=self.member,channel=self.channel,
-                               response=SimpleNamespace(send_message=AsyncMock(),edit_message=AsyncMock(),is_done=lambda:False),
+                               response=SimpleNamespace(send_message=AsyncMock(),edit_message=AsyncMock(),defer=AsyncMock(),is_done=lambda:False),
+                               edit_original_response=AsyncMock(),
                                followup=SimpleNamespace(send=AsyncMock()),message=SimpleNamespace(edit=AsyncMock()))
 
     async def enable(self, **changes):
@@ -142,7 +143,7 @@ class CoffeeCardsTests(unittest.IsolatedAsyncioTestCase):
         await self.enable(coffee_character="none")
         interaction = self.interaction()
         await self.bot.tree.get_command("drinks").callback(interaction,self.actor)
-        sent = interaction.response.send_message.await_args.kwargs
+        sent = interaction.followup.send.await_args.kwargs
         self.assertTrue(sent["ephemeral"])
         view = sent["view"]
         self.assertIsInstance(view,CoffeeMenuView)

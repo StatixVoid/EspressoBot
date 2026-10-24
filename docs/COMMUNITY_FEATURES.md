@@ -63,14 +63,55 @@ Delivery is claimed persistently before sending. A restart during delivery, time
 Each feature starts off and is optional per server:
 
 - `/coffee member [drink] [character]` sends a friendly illustrated café card, with a 30-second per-member cooldown and no notification pings. Choose from 12 real drinks, including espresso, cold brew, hot chocolate, chai, and matcha, or leave the drink as `surprise`. Autocomplete lists the supported beverage names. Hot chocolate is coffee-free; cocoa still contains some caffeine.
-- `/drinks [member]` opens a private beverage menu with drink and character selectors. Choose a recipient or leave it empty for a treat for yourself, then press **Send card** to post in the current channel. The menu lasts three minutes; sending rechecks whether cards remain enabled and whether you and Espresso can post. Invalid choices and missing permissions do not use your cooldown.
+- `/drinks [member] [forget]` opens a private beverage menu with drink and character selectors. Choose a recipient or leave it empty for a treat for yourself, then press **Send card** to post in the current channel. The menu lasts three minutes; sending rechecks whether cards remain enabled and whether you and Espresso can post. Invalid choices and missing permissions do not use your cooldown.
 - Cards can feature Sabrina, Velvet Guardian, Cloud Dreamer, Honey Spark, or **Just the drink**. Staff choose the server's default character alongside the card's style, color, title, and message in Community settings. Character artwork ships with the bot and requires **Attach Files**; all cards require **Embed Links**. Simple cards work without attachment permission. Existing server settings inherit Sabrina as their default character.
 - `/poll question options [hours]` creates a native Discord poll. Separate 2–10 unique answer options with `|`; duration is 1–168 hours. A member may start one poll every two minutes. Both the member and bot need channel posting and Send Polls permissions.
 - **Daily conversation starters** post a rotating café prompt in the chosen channel. Select the hour in UTC; 16 UTC is 9 AM in Arizona. The first connected worker tick after that hour queues one prompt for the current UTC day. It skips previous days and persists the date to avoid duplicate prompts after restart. Moving or disabling prompts before delivery cancels the queued prompt.
 
 Coffee cards support configurable styles, titles, text, and a custom accent color. Daily prompts can use a server-written library or the built-in fallback. Persistent button/dropdown role menus are also available in Community & tools; see [the refinement guide](REFINEMENTS.md#button-and-dropdown-role-menus). Coffee cards and polls require both the member and Espresso to be able to post in the channel. These commands cannot turn a read-only channel into a public posting route.
 
+### Your usual in Discord
+
+In the private `/drinks` menu, choose a drink and companion, then select **Save as
+my usual** to remember that pair for yourself in the current server. Saving does
+not send a card or post a public message. A later `/drinks` menu starts with your
+saved pair; **Load my usual** also brings it back after you change the selectors.
+The chosen recipient is never part of a saved usual. **Send card** remains the
+separate action that posts the card, subject to the normal feature, permission
+and cooldown checks.
+
+**Clear my usual** removes that server's saved pair. You can also use
+`/drinks forget:true` to erase it even if staff have since disabled coffee cards.
+Orders are separate for each server and member; clearing one does not change
+another server's order or a website preview. An unsupported saved drink or
+companion does not turn into an arbitrary custom choice.
+
+### Remember a website preview
+
+The homepage menu has **Remember my preview**, **Load my preview**, and **Clear
+saved preview**. These controls are optional and only use this browser's storage.
+Remembering saves just the current valid drink and companion IDs in one versioned
+entry, replacing the previous pair. It does not save recipient text, identity,
+Discord IDs, card text, or a selection history, and it sends no preference to
+Espresso's server or Discord.
+
+The page shows when a saved preview is available. It applies it only when you
+choose **Load my preview**; opening or reloading the page does not replace the
+current card automatically. Loading also leaves any current recipient text alone.
+Changing the menu without remembering saves nothing. Another tab can announce an
+updated saved pair without applying it to the current card. Invalid or removed
+menu choices are ignored, and unavailable browser storage shows an error instead
+of claiming a save or removal succeeded.
+
+The website preview is independent of **my usual** in Discord. It remains in the
+same browser profile until **Clear saved preview** or the browser's site-data
+controls remove it. Other people using that same browser profile may see the
+saved pair. No sign-in is needed. If the menu cannot load, preference controls
+stay unavailable and the saved entry is left alone.
+
 ## Data and operation
+
+Saved Discord usuals store the server ID, member ID, drink ID and companion ID; they contain no recipient, custom card text or order history. Members can remove their saved pair with the menu or `/drinks forget:true`. The running bot also clears usuals when it receives the server-removal event. Website preview preferences stay in the browser and are not part of the bot database or its server-removal cleanup.
 
 The staff inbox stores submitted text, member IDs, linked message IDs/URLs, optional case references, assignments, decisions, and review notes. Moderation cases and warning-removal records preserve reasons and outcomes. Scheduled posts store their message text, channel/actor IDs, due/repeat times, notification choice, and delivery status. Recovery records store only the changed permission values, channel IDs, and restoration deadline. Repeated-message detection retains bounded text hashes and member/time buckets in memory, not original text in SQLite.
 

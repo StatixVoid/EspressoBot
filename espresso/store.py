@@ -11,13 +11,14 @@ import aiosqlite
 from .rules import Settings
 from .reaction_roles import mapping_key
 from .community_store import CommunityStore
+from .coffee_preferences import CoffeePreferenceStore
 
 
 class SettingsConflict(ValueError):
     """The settings changed after the caller opened its form."""
 
 
-class Store(CommunityStore):
+class Store(CommunityStore, CoffeePreferenceStore):
     def __init__(self, path: str):
         self.path = path
         self.lock = asyncio.Lock()
@@ -85,6 +86,7 @@ class Store(CommunityStore):
 
         await self.open_community()
         await self.open_hub()
+        await self.open_coffee_preferences()
 
     async def close(self) -> None:
         if self.db:
@@ -312,6 +314,7 @@ class Store(CommunityStore):
             await self.db.execute("DELETE FROM screening_cases WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM screening_audit WHERE guild_id=?", (guild_id,))
             await self.db.execute("DELETE FROM activity_logs WHERE guild_id=?", (guild_id,))
+            await self.db.execute("DELETE FROM coffee_preferences WHERE guild_id=?", (guild_id,))
             await self.db.commit()
 
     async def log_activity(self, guild_id, title, details):

@@ -30,6 +30,12 @@
 .drink-stage .actions{gap:.6rem;flex-wrap:wrap;margin-top:1.2rem}
 .drink-stage .button{font-size:.75rem;min-height:44px;padding:.8rem 1rem}
 .drink-menu-status{font-size:.75rem;line-height:1.7;min-height:2.6em;color:var(--muted)}
+.drink-preview-preference{margin:1.2rem 0;padding-top:1.2rem;border-top:1px solid var(--border);min-width:0}
+.drink-preview-preference h3{font:600 1.05rem var(--font-display,Georgia,serif);margin:0 0 .6rem}
+.drink-preview-preference p{font-size:.73rem;line-height:1.7;color:var(--muted);overflow-wrap:anywhere}
+.drink-preview-preference .actions{margin:.8rem 0}
+.drink-preview-preference .button{white-space:normal;max-width:100%;font-size:.7rem}
+#drink-preview-status{min-height:3.4em;margin:.8rem 0 0}
 .drink-stage-note{font-size:.7rem;color:var(--muted);line-height:1.7}
 .coffee-card-preview.drink-card{white-space:normal;margin-top:1rem;max-width:680px}
 .coffee-card-preview .drink-card-character{height:250px}

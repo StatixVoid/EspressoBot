@@ -24,6 +24,15 @@ The website uses the clean coffee-cup logo, a pink/purple connected-particle bac
 
 The homepage features unofficial Sabrina-inspired café artwork, a beverage menu, and original café heroes. Pick a drink and character to preview a friendly card, then use `/drinks` in Discord to send one. The site respects reduced-motion preferences and includes a Pause background control. Character artwork is decorative and does not represent an endorsement.
 
+The homepage menu can optionally **Remember my preview**, **Load my preview**,
+or **Clear saved preview**. One browser-local entry stores only your drink and
+companion IDs, never recipient text or Discord identity. It is not loaded
+implicitly and does not sync to Discord. In Discord, `/drinks` separately offers
+**Save as my usual**, **Load my usual**, and **Clear my usual** for your account in
+that server. The next menu starts with your saved usual; saving posts no card.
+Use `/drinks forget:true` to remove it even while coffee cards are disabled.
+See [saved choices and privacy](docs/COMMUNITY_FEATURES.md#your-usual-in-discord).
+
 The **On the menu** feature catalog shows what is available and what is still being built. **Member screening is available**, with a home-page overview of account-age checks, rules agreement, access roles, and staff review. To keep the website and bio current as features ship, see [website content maintenance](docs/WEBSITE_CONTENT.md).
 
 The home page reads **`GET /api/stats`** every 30 seconds while visible. Server totals come directly from the running bot's current Discord server cache, so joins and removals appear on the next refresh. The endpoint publishes only the aggregate count, connection status, gateway heartbeat latency, and check time; server names, IDs, member data, and credentials are excluded. Preview mode, a disconnected bot, or a failed request shows a clear state with unavailable values instead of a made-up count. Run the website and bot together for live stats; `--web-only` always shows preview status.
@@ -224,7 +233,7 @@ Use a host that supports a continuously running Python application and outbound 
 - Install dependencies in an isolated environment, inject the token through secrets, and run `python -m espresso` with the project directory as working directory.
 - Set `DATABASE_PATH` to a persistent writable disk path. Ephemeral disks lose warnings/settings after redeploy. Use the host's process supervisor with restart-on-failure and normal graceful shutdown.
 - For a consistent simple backup, stop the bot and copy `data/espresso.db`; then restart. Do not copy only the main file while it is running in WAL mode. Protect backups and the database with host filesystem permissions.
-- SQLite stores server settings, user/moderator IDs, timestamps, warning reasons, message/interaction IDs, settings versions, and panel settings audit metadata (actor, time, changed keys). Reasons are limited to 300 characters; automatic warnings store only the rule name. Raw message bodies and attachments are not stored in the database.
+- SQLite stores server settings, user/moderator IDs, timestamps, warning reasons, message/interaction IDs, settings versions, optional per-server/member usual drink and companion IDs, and panel settings audit metadata (actor, time, changed keys). Reasons are limited to 300 characters; automatic warnings store only the rule name. Raw message bodies and attachments are not stored in the database.
 - Staff-channel and process logs contain action metadata and outcome, not message bodies or manual reasons. Reasons remain in SQLite, private warning history responses, warning DMs, and timeout audit reasons. Configure host log rotation/retention and restrict database access.
 - Warnings remain until staff clear them; optional warning expiry stops them counting toward escalation without deleting history. Case and warning-removal audit records remain. Reports, appeals, review notes, scheduled message text, and raid-recovery metadata are also stored; see [community data details](docs/COMMUNITY_FEATURES.md#data-and-operation). When the running bot receives a server-removal event, all its server records are deleted; offline removals require operator cleanup. Backups and Discord log messages are not deleted automatically.
 
