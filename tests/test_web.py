@@ -242,6 +242,63 @@ class PanelTests(unittest.IsolatedAsyncioTestCase):
         self.guild.fetch_roles.assert_not_awaited()
         self.assertEqual((await self.client.get("/api/servers?include_settings=1&server=bad")).status,400)
 
+    async def test_bootstrap_keeps_server_list_when_saved_settings_raise(self):
+        for error in (RuntimeError, KeyError, AttributeError, TypeError, ValueError):
+            with self.subTest(error=error.__name__):
+                with patch.object(self.store, "snapshot", side_effect=error("private-access-token")):
+                    with self.assertLogs("espresso.web", level="ERROR") as logs:
+                        response = await self.client.get("/api/servers?include_settings=1")
+                self.assertEqual(response.status, 200, await response.text())
+                data = await response.json()
+                self.assertEqual(data["servers"][0]["id"], "1")
+                self.assertTrue(data["servers"][0]["installed"])
+                self.assertEqual(data["initial_server"]["id"], "1")
+                self.assertIn("Retry this server or choose another server", data["initial_server"]["error"])
+                self.assertNotIn("data", data["initial_server"])
+                self.assertIn(error.__name__, " ".join(logs.output))
+                self.assertIn("web.py:", " ".join(logs.output))
+                self.assertNotIn("private-access-token", " ".join(logs.output))
+                self.assertNotIn("private-access-token", await response.text())
+        recovered = await self.client.get("/api/servers/1/settings")
+        self.assertEqual(recovered.status, 200, await recovered.text())
+
+    async def test_bootstrap_settings_failure_does_not_block_other_servers(self):
+        other_guild = SimpleNamespace(**{**vars(self.guild), "id": 2})
+        self.bot.get_guild.side_effect = lambda guild_id: {1:self.guild, 2:other_guild}.get(guild_id)
+        self.api.guilds.return_value.append({"id":"2", "name":"Other lounge", "permissions":"32"})
+        original_snapshot = self.store.snapshot
+
+        async def snapshot(guild_id):
+            if guild_id == 1:
+                raise RuntimeError("Private saved settings could not be decoded")
+            return await original_snapshot(guild_id)
+
+        with patch.object(self.store, "snapshot", side_effect=snapshot):
+            with self.assertLogs("espresso.web", level="ERROR"):
+                response = await self.client.get("/api/servers?include_settings=1&server=1")
+            data = await response.json()
+            self.assertEqual(response.status, 200)
+            self.assertEqual([server["id"] for server in data["servers"]], ["1", "2"])
+            self.assertIn("error", data["initial_server"])
+            response = await self.client.get("/api/servers/2/settings")
+            self.assertEqual(response.status, 200, await response.text())
+            self.assertIn("settings", await response.json())
+        self.api.guilds.return_value[1]["permissions"] = "0"
+        self.assertEqual((await self.client.get("/api/servers/2/settings")).status, 403)
+
+    async def test_unexpected_request_error_logs_code_locations_without_secrets(self):
+        self.api.guilds.side_effect = RuntimeError("private-access-token")
+        with self.assertLogs("espresso.web", level="ERROR") as logs:
+            response = await self.client.get("/api/servers?private=query-secret")
+        self.assertEqual(response.status, 500)
+        self.assertEqual((await response.json())["error"], "The request failed. Please try again.")
+        output = " ".join(logs.output)
+        self.assertIn("GET /api/servers", output)
+        self.assertIn("RuntimeError", output)
+        self.assertIn("web.py:", output)
+        self.assertNotIn("private-access-token", output)
+        self.assertNotIn("query-secret", output)
+
     async def test_cross_server_access_is_denied(self):
         self.assertEqual((await self.client.get("/api/servers/2/settings")).status, 403)
         self.assertEqual((await self.save({"enabled":True}, guild="2")).status, 403)
@@ -429,3 +486,4 @@ class ConfigTests(unittest.TestCase):
         for url in ("http://espresso.harperurias.com","https://x.example/path","https://user:pass@x.example"):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 WebConfig(base_url=url)
+
