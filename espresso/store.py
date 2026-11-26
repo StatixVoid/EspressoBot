@@ -12,13 +12,14 @@ from .rules import Settings
 from .reaction_roles import mapping_key
 from .community_store import CommunityStore
 from .coffee_preferences import CoffeePreferenceStore
+from .premium_store import PremiumStore
 
 
 class SettingsConflict(ValueError):
     """The settings changed after the caller opened its form."""
 
 
-class Store(CommunityStore, CoffeePreferenceStore):
+class Store(CommunityStore, CoffeePreferenceStore, PremiumStore):
     def __init__(self, path: str):
         self.path = path
         self.lock = asyncio.Lock()
@@ -87,6 +88,8 @@ class Store(CommunityStore, CoffeePreferenceStore):
         await self.open_community()
         await self.open_hub()
         await self.open_coffee_preferences()
+        await self.db.execute("CREATE INDEX IF NOT EXISTS cases_guild_time ON moderation_cases(guild_id,created_at)")
+        await self.db.commit()
 
     async def close(self) -> None:
         if self.db:

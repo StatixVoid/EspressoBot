@@ -25,6 +25,8 @@ from .community_commands import register_community_commands
 from .role_menus import RoleMenuManager
 from .hub import HubManager
 from .hub_commands import register_hub_commands
+from .premium import PremiumConfig
+from .premium_commands import register_premium_commands
 
 LOG = logging.getLogger("espresso")
 COLOR = 0xD8A7B1  # Soft pink, with a little coffee-shop charm.
@@ -69,7 +71,7 @@ class StaffGroup(app_commands.Group):
 
 
 class Espresso(discord.Client):
-    def __init__(self, database_path: str, dev_guild_id: int | None = None, *, website_base_url: str | None = None, member_screening_events: bool = False):
+    def __init__(self, database_path: str, dev_guild_id: int | None = None, *, website_base_url: str | None = None, member_screening_events: bool = False, premium: PremiumConfig | None = None):
         intents = discord.Intents.none()
         intents.guilds = True
         intents.guild_messages = True
@@ -82,6 +84,7 @@ class Espresso(discord.Client):
                          max_messages=1000, member_cache_flags=discord.MemberCacheFlags.none(),
                          activity=discord.Game(name="Espresso | keeping chats sweet ☕"))
         self.store = Store(database_path)
+        self.premium = premium if premium is not None else PremiumConfig.from_environment()
         self.dev_guild_id = dev_guild_id
         self.website_base_url = website_base_url
         self.setup_hint_times = OrderedDict()
@@ -98,6 +101,7 @@ class Espresso(discord.Client):
         self.register_commands()
         register_community_commands(self)
         register_hub_commands(self)
+        register_premium_commands(self)
 
     def member_lock(self, guild_id: int, user_id: int) -> asyncio.Lock:
         return self.member_locks[hash((guild_id, user_id)) % len(self.member_locks)]

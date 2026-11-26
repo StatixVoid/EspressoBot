@@ -24,6 +24,7 @@ async function main() {
     const page = await browser.newPage({viewport:{width:1440,height:1000}}), errors = [], dialogs = [], unexpected = [];
     page.on("pageerror",error=>{errors.push(error.message);console.error("Browser error: "+error.stack);});
     let acceptDialogs=false, mode="manager", settings=defaults(), hub=hubDefaults(), version=0, hubVersion=0, writes=0, failure="", releaseSave=null, holdSave=false, releaseTest=null, holdTest=false, notifySave=null, notifyTest=null;
+    let premiumActive=true, premiumFailure=false;
     page.on("dialog",async dialog=>{dialogs.push(dialog.message());await (acceptDialogs?dialog.accept():dialog.dismiss());});
     const roles=[{id:"31",name:"Support team"}], channels=[{id:"20",name:"general",kind:"text",can_log:true}];
     const access=()=>({manage:mode==="manager",moderate:true});
@@ -66,12 +67,35 @@ async function main() {
       else if(p.endsWith("/overview"))result={access:access(),reports:{total:0,overdue:0},verification_waiting:0,post_issues:[],health_issues:[],protection:[]};
       else if(p.endsWith("/inbox"))result={items:[],next_cursor:null};
       else if(p.endsWith("/cases"))result={cases:[],next_cursor:null};
+      else if(p.endsWith("/premium"))result={active:premiumActive,billing_enabled:false};
+      else if(p.endsWith("/premium/insights")){
+        if(premiumFailure){await route.fulfill({status:403,json:{error:"Your staff access was revoked."}});return;}
+        const days=Number(url.searchParams.get("days"));
+        result={guild_id:p.split("/")[3],days,generated_at:1795694400,totals:{cases:days,warnings:2,timeouts:1,members:3},
+          daily:Array.from({length:days},(_,i)=>({date:`2026-11-${String(i+1).padStart(2,"0")}`,cases:i===0?days:0}))};
+      }
       else {unexpected.push(p);await route.fulfill({status:404,json:{error:"Unexpected fixture request"}});return;}
       await route.fulfill({json:result});
     });
     const visible=selector=>page.locator(selector).waitFor({state:"visible"});
     const waitFor=fn=>page.waitForFunction(fn);
     await page.goto(site+"/dashboard?server=1");await visible("#settings-form");
+    await page.locator("#tab-overview").click();
+    await page.locator("#premium-message").filter({hasText:"7 UTC dates"}).waitFor();
+    assert.match(await page.locator("#premium-metrics").innerText(),/Recorded cases\s+7/);
+    await page.locator("#premium-days").selectOption("30");
+    await page.locator("#premium-message").filter({hasText:"30 UTC dates"}).waitFor();
+    assert.equal(await page.locator("#premium-daily tr").count(),30);
+    premiumActive=false;await page.locator("#premium-refresh").click();
+    await page.locator("#premium-message").filter({hasText:"do not have access"}).waitFor();
+    assert.equal(await page.locator("#premium-metrics").textContent(),"");
+    assert.equal(await page.locator("#premium-daily tr").count(),0);
+    premiumActive=true;premiumFailure=true;await page.locator("#premium-refresh").click();
+    await page.locator("#premium-message").filter({hasText:"revoked"}).waitFor();
+    assert.equal(await page.locator("#premium-metrics").textContent(),"");premiumFailure=false;
+    await page.locator("#premium-refresh").click();
+    await page.locator("#premium-message").filter({hasText:"30 UTC dates"}).waitFor();
+    await page.locator("#tab-settings").click();
     await page.locator(".design-details summary").click();
     await page.locator("#coffee-card-preview h3").waitFor();
     await page.locator("#coffee-preview-drink").selectOption("hot-chocolate");
@@ -137,8 +161,10 @@ async function main() {
     assert.equal(await page.locator("#tab-hub").getAttribute("aria-selected"),"true");
     mode="moderator";await page.goto(site+"/dashboard?server=1&tab=hub");await visible("#overview-panel");
     assert.equal(await page.locator("#tab-hub").isVisible(),false);assert.equal(await page.locator("#workspace-drafts").isHidden(),true);
+    await page.locator("#premium-message").filter({hasText:"7 UTC dates"}).waitFor();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
     assert.deepEqual(unexpected,[]);assert.deepEqual(errors,[]);
-    console.log("Workspace browser checks passed: search, review, shortcuts, cross-tab drafts, in-flight saves, failed requests, simulation, deep links, permissions, and mobile navigation.");
+    console.log("Workspace browser checks passed: premium periods, access loss, report clearing, search, review, shortcuts, cross-tab drafts, in-flight saves, failed requests, simulation, deep links, permissions, and mobile navigation.");
   } finally {await browser.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

@@ -257,3 +257,9 @@ Branding is fan-inspired and unofficial. The project includes no artist photogra
 ### Reaction-role templates
 
 In the dashboard, open Reaction roles → Start with a role template. Choose a channel and menu, edit the options, review the roles and embed, then select **Add template to channel**. Espresso can create basic roles or use explicitly selected existing roles. See [the template guide](docs/REACTION_ROLE_TEMPLATES.md) for permissions, limits, and retry behavior.
+
+### Premium Insights pilot
+
+Aggregate 7- or 30-day moderation reports are available in Overview and with
+`/premium insights`. `/premium status` checks pilot access; `/myid` privately
+shows your Discord IDs. See [pilot access and hosting notes](docs/PREMIUM.md).
