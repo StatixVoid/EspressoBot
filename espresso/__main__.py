@@ -28,7 +28,7 @@ async def clear_dev_commands(token: str, guild_id: int) -> None:
 
 
 async def serve_panel(config: WebConfig, store: Store, bot=None) -> None:
-    runner = web.AppRunner(Panel(config, store, bot).app, access_log=None)
+    runner = web.AppRunner(Panel(config, store, bot, premium=bot.premium if bot else None).app, access_log=None)
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     old_term = signal.getsignal(signal.SIGTERM)

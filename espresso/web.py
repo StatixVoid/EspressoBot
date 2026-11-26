@@ -9,6 +9,7 @@ import math
 from pathlib import Path
 import secrets
 import time
+import traceback
 from urllib.parse import urlencode
 
 import aiohttp
@@ -23,6 +24,7 @@ from .screening_config import rules_revision
 from .website_catalog import render_feature_catalog
 from .role_templates import TemplatePublisher
 from .community_web import install_community_routes, decode_extensions
+from .premium import PremiumConfig
 
 PUBLIC = Path(__file__).with_name("public")
 API = "https://discord.com/api/v10"
@@ -32,6 +34,16 @@ STATE_COOKIE = "espresso_oauth"
 MANAGE_GUILD = 0x20
 ADMINISTRATOR = 0x8
 MODERATE_MEMBERS = 1 << 40
+
+
+def log_web_failure(operation, exc):
+    # Log code locations without exception messages, source lines, or locals;
+    # those can contain OAuth tokens or private settings from upstream errors.
+    locations = " -> ".join(
+        f"{Path(frame.filename).name}:{frame.lineno} ({frame.name})"
+        for frame in traceback.StackSummary.extract(traceback.walk_tb(exc.__traceback__), lookup_lines=False)
+    )
+    LOG.error("%s failed (%s): %s", operation, type(exc).__name__, locations)
 
 
 @dataclass
@@ -136,8 +148,9 @@ def snowflake(value) -> int:
 
 
 class Panel:
-    def __init__(self, config: WebConfig, store: Store, bot=None, api=None):
+    def __init__(self, config: WebConfig, store: Store, bot=None, api=None, *, premium: PremiumConfig | None = None):
         self.config, self.store, self.bot = config, store, bot
+        self.premium = premium if premium is not None else PremiumConfig.from_environment()
         self.api = api or DiscordAPI()
         self.template_publisher = TemplatePublisher(store, bot)
         self.sessions: OrderedDict[str, Session] = OrderedDict()
@@ -166,6 +179,8 @@ class Panel:
         install_refinement_routes(self)
         from .hub_web import install_hub_routes
         install_hub_routes(self)
+        from .premium_web import install_premium_routes
+        install_premium_routes(self)
         self.app.router.add_static("/assets/", PUBLIC, show_index=False)
         self.app.on_startup.append(self.start)
         self.app.on_cleanup.append(self.cleanup)
@@ -190,7 +205,7 @@ class Panel:
         except (ValueError, TypeError):
             response = web.json_response({"error": "Invalid request. Check the form values."}, status=400)
         except Exception as exc:
-            LOG.error("Web request failed (%s).", type(exc).__name__)
+            log_web_failure(f"Web request {request.method} {request.path}", exc)
             response = web.json_response({"error": "The request failed. Please try again."}, status=500)
         if isinstance(response, web.HTTPException):
             redirect = web.Response(status=response.status, headers=response.headers, body=response.body)
@@ -397,6 +412,14 @@ class Panel:
                         payload["initial_server"] = {"id":selected["id"],"data":await self.settings_payload(guild) if selected["can_manage"] else self.staff_payload()}
                     except web.HTTPException as exc:
                         payload["initial_server"] = {"id":selected["id"],"error":exc.reason}
+                    except Exception as exc:
+                        # Optional settings must not hide the already-authorized
+                        # server list if a saved policy or payload fails to load.
+                        log_web_failure("Initial server settings", exc)
+                        payload["initial_server"] = {
+                            "id": selected["id"],
+                            "error": "Could not load this server's settings. Retry this server or choose another server. If this continues, contact Espresso's operator.",
+                        }
         return web.json_response(payload)
 
     async def authorize(self, request, session, permission="manage_guild"):

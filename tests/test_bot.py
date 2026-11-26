@@ -161,11 +161,11 @@ class BotTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_slash_schema_and_minimal_intents(self):
         groups = self.bot.tree.get_commands()
-        self.assertEqual({g.name for g in groups}, {"espresso", "mod", "verify", "screening", "report", "Report to Espresso", "appeal", "mycases", "myreports", "coffee", "drinks", "poll", "staffdesk", "community", "ticket", "events", "suggestions", "room", "birthday", "highlights", "profile", "thanks", "suggest", "faq", "tag"})
+        self.assertEqual({g.name for g in groups}, {"espresso", "mod", "verify", "screening", "report", "Report to Espresso", "appeal", "mycases", "myreports", "coffee", "drinks", "poll", "staffdesk", "community", "ticket", "events", "suggestions", "room", "birthday", "highlights", "profile", "thanks", "suggest", "faq", "tag", "myid", "premium"})
         for group in groups:
             schema = group.to_dict(self.bot.tree)
             self.assertFalse(schema["dm_permission"])
-            if group.name in {"espresso", "mod", "screening", "staffdesk", "community"}:
+            if group.name in {"espresso", "mod", "screening", "staffdesk", "community", "premium"}:
                 self.assertTrue(schema["default_member_permissions"])
         self.assertTrue(self.bot.intents.message_content)
         self.assertFalse(self.bot.intents.members)
