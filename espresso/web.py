@@ -23,6 +23,7 @@ from .screening_config import rules_revision
 from .website_catalog import render_feature_catalog
 from .role_templates import TemplatePublisher
 from .community_web import install_community_routes, decode_extensions
+from .premium import PremiumConfig
 
 PUBLIC = Path(__file__).with_name("public")
 API = "https://discord.com/api/v10"
@@ -136,8 +137,9 @@ def snowflake(value) -> int:
 
 
 class Panel:
-    def __init__(self, config: WebConfig, store: Store, bot=None, api=None):
+    def __init__(self, config: WebConfig, store: Store, bot=None, api=None, *, premium: PremiumConfig | None = None):
         self.config, self.store, self.bot = config, store, bot
+        self.premium = premium if premium is not None else PremiumConfig.from_environment()
         self.api = api or DiscordAPI()
         self.template_publisher = TemplatePublisher(store, bot)
         self.sessions: OrderedDict[str, Session] = OrderedDict()
@@ -166,6 +168,8 @@ class Panel:
         install_refinement_routes(self)
         from .hub_web import install_hub_routes
         install_hub_routes(self)
+        from .premium_web import install_premium_routes
+        install_premium_routes(self)
         self.app.router.add_static("/assets/", PUBLIC, show_index=False)
         self.app.on_startup.append(self.start)
         self.app.on_cleanup.append(self.cleanup)
